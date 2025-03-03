@@ -1,0 +1,39 @@
+name: FP3
+
+on: 
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 7 12 *'
+
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
+jobs:
+  scrape-latest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v2.0.0
+        with:
+          python-version: '3.10'
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Run Telemetry
+        run: python telFP3.py run-all
+      - name: Commit changes
+        run: |
+          git config --local user.name github-actions
+          git config --local user.email "action@github.com"
+          git pull origin main
+          git add .
+          if [[ "$(git status --porcelain)" != "" ]]; then
+              git commit -m "Update data" -a
+              git push -u origin main
+          fi
+        env:
+          REPO_KEY: ${{secrets.GITHUB_TOKEN}}
+          username: github-actions   
+      
