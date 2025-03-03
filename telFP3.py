@@ -19,6 +19,7 @@ def events_available(year: int) -> any:
 
 
 events = [
+    "Pre-Season Testing",
     # 'Australian Grand Prix',
     # 'Chinese Grand Prix',
     # 'Japanese Grand Prix',
