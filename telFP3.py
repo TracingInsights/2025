@@ -19,8 +19,8 @@ def events_available(year: int) -> any:
 
 
 events = [
-    "Pre-Season Testing",
-    # 'Australian Grand Prix',
+    # "Pre-Season Testing",
+    "Australian Grand Prix",
     # 'Chinese Grand Prix',
     # 'Japanese Grand Prix',
     # 'Bahrain Grand Prix',
@@ -175,8 +175,8 @@ def session_drivers(year: int, event: str | int, session: str) -> any:
     # get drivers available for a given year, event and session
     import fastf1
 
-    # f1session = fastf1.get_session(year, event, session)
-    f1session = fastf1.get_testing_session(2025, 1, 3)
+    f1session = fastf1.get_session(year, event, session)
+    # f1session = fastf1.get_testing_session(2025, 1, 3)
     f1session.load(telemetry=True, weather=False, messages=False)
 
     laps = f1session.laps
@@ -201,8 +201,8 @@ def session_drivers_list(year: int, event: str | int, session: str) -> any:
     # get drivers available for a given year, event and session
     import fastf1
 
-    # f1session = fastf1.get_session(year, event, session)
-    f1session = fastf1.get_testing_session(2025, 1, 3)
+    f1session = fastf1.get_session(year, event, session)
+    # f1session = fastf1.get_testing_session(2025, 1, 3)
     f1session.load(telemetry=True, weather=False, messages=False)
 
     laps = f1session.laps
@@ -214,8 +214,8 @@ def session_drivers_list(year: int, event: str | int, session: str) -> any:
 
 def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
     # get drivers available for a given year, event, and session
-    # f1session = fastf1.get_session(year, event, session)
-    f1session = fastf1.get_testing_session(2025, 1, 3)
+    f1session = fastf1.get_session(year, event, session)
+    # f1session = fastf1.get_testing_session(2025, 1, 3)
     f1session.load(telemetry=False, weather=False, messages=False)
     laps = f1session.laps
 
@@ -311,8 +311,8 @@ def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
 
 
 def telemetry_data(year, event, session: str, driver, lap_number):
-    # f1session = fastf1.get_session(year, event, session)
-    f1session = fastf1.get_testing_session(2025, 1, 3)
+    f1session = fastf1.get_session(year, event, session)
+    # f1session = fastf1.get_testing_session(2025, 1, 3)
     f1session.load(telemetry=True, weather=False, messages=False)
     laps = f1session.laps
 
@@ -374,8 +374,8 @@ while True:
                 drivers = session_drivers_list(YEAR, event, session)
 
                 for driver in drivers:
-                    # f1session = fastf1.get_session(YEAR, event, session)
-                    f1session = fastf1.get_testing_session(2025, 1, 3)
+                    f1session = fastf1.get_session(YEAR, event, session)
+                    # f1session = fastf1.get_testing_session(2025, 1, 3)
                     f1session.load(telemetry=False, weather=False, messages=False)
                     laps = f1session.laps
                     driver_laps = laps.pick_driver(driver)
@@ -408,8 +408,8 @@ while True:
             # get drivers available for a given year, event and session
             import fastf1
 
-            # f1session = fastf1.get_session(year, event, session)
-            f1session = fastf1.get_testing_session(2025, 1, 3)
+            f1session = fastf1.get_session(year, event, session)
+            # f1session = fastf1.get_testing_session(2025, 1, 3)
             f1session.load(telemetry=True, weather=False, messages=False)
 
             laps = f1session.laps
@@ -460,8 +460,8 @@ while True:
             # get drivers available for a given year, event and session
             import fastf1
 
-            # f1session = fastf1.get_session(year, event, session)
-            f1session = fastf1.get_testing_session(2025, 1, 3)
+            f1session = fastf1.get_session(year, event, session)
+            # f1session = fastf1.get_testing_session(2025, 1, 3)
             f1session.load(telemetry=True, weather=False, messages=False)
 
             laps = f1session.laps
@@ -472,8 +472,8 @@ while True:
 
         def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
             # get drivers available for a given year, event, and session
-            # f1session = fastf1.get_session(year, event, session)
-            f1session = fastf1.get_testing_session(2025, 1, 3)
+            f1session = fastf1.get_session(year, event, session)
+            # f1session = fastf1.get_testing_session(2025, 1, 3)
             f1session.load(telemetry=False, weather=False, messages=False)
             laps = f1session.laps
 
@@ -544,8 +544,8 @@ while True:
         for event in events:
 
             for session in sessions:
-                # f1session = fastf1.get_session(YEAR, event, session)
-                f1session = fastf1.get_testing_session(2025, 1, 3)
+                f1session = fastf1.get_session(YEAR, event, session)
+                # f1session = fastf1.get_testing_session(2025, 1, 3)
                 f1session.load()
                 circuit_info = f1session.get_circuit_info().corners
                 corner_info = {
@@ -645,8 +645,8 @@ def get_circuit_info(*, year: int, circuit_key: int):
 
 for event in events:
     for session in sessions:
-        # f1session = fastf1.get_session(YEAR, event, session)
-        f1session = fastf1.get_testing_session(2025, 1, 3)
+        f1session = fastf1.get_session(YEAR, event, session)
+        # f1session = fastf1.get_testing_session(2025, 1, 3)
         f1session.load()
         circuit_key = f1session.session_info["Meeting"]["Circuit"]["Key"]
         circuit_info = get_circuit_info(year=YEAR, circuit_key=circuit_key)
