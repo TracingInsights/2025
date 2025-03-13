@@ -19,7 +19,7 @@ def events_available(year: int) -> any:
 
 
 events = [
-    # 'Australian Grand Prix',
+    'Australian Grand Prix',
     # 'Chinese Grand Prix',
     # 'Japanese Grand Prix',
     # 'Bahrain Grand Prix', 
@@ -164,6 +164,20 @@ def get_sessions(year, event):
             event == "Chinese Grand Prix"
             or event == "Miami Grand Prix"
             or event == "Austrian Grand Prix"
+            or event == "United States Grand Prix"
+            or event == "São Paulo Grand Prix"
+            or event == "Qatar Grand Prix"
+        ):
+            return sprint_shootout_2024
+
+        return normal_sessions
+    if year == 2025:
+        if event == "Pre-Season Testing":
+            return p1_p2_p3
+        if (
+            event == "Chinese Grand Prix"
+            or event == "Miami Grand Prix"
+            or event == "Belgium Grand Prix"
             or event == "United States Grand Prix"
             or event == "São Paulo Grand Prix"
             or event == "Qatar Grand Prix"

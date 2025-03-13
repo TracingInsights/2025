@@ -3,7 +3,7 @@ name: FP2
 on: 
   workflow_dispatch:
   schedule:
-    - cron: '30 14 6 12 *'
+    - cron: '0 5 14 3 *'
 
 env:
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
