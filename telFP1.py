@@ -443,7 +443,7 @@ def process_telemetry_data():
                         .reset_index(drop=True)
                         .copy()
                     )
-                    driver_laps["LapTime"] = driver_laps["LapTime"].astype(float)
+
                     driver_laps["LapTime"] = driver_laps["LapTime"].apply(
                         lambda x: (
                             x.total_seconds()
