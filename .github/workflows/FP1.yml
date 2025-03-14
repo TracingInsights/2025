@@ -51,11 +51,10 @@ jobs:
           git config --local user.name github-actions
           git config --local user.email "action@github.com"
           git pull origin main
-          git add .
-          if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update data" -a
-              git push -u origin main
-          fi
+          git add -A
+          git add "${{ env.EVENT }}/Practice 1/**/*.json" --force
+          git commit -m "Update telemetry data" || echo "No changes to commit"
+          git push origin main
         env:
           REPO_KEY: ${{secrets.GITHUB_TOKEN}}
           username: github-actions
