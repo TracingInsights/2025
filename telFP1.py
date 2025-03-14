@@ -245,7 +245,9 @@ def laps_data(
     driver_laps = laps.pick_drivers(driver)
     # Remove rows where LapTime is null
     driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
-    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].apply(
+        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
+    )
     return {
         "time": driver_laps["LapTime"].tolist(),
         "lap": driver_laps["LapNumber"].tolist(),
@@ -329,7 +331,9 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     driver_laps = laps.pick_drivers(driver)
     driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
 
-    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].apply(
+        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
+    )
 
     # Get the telemetry for lap_number
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
@@ -440,9 +444,11 @@ def process_telemetry_data():
                         .reset_index(drop=True)
                         .copy()
                     )
-                    driver_laps.loc[:, "LapTime"] = driver_laps[
-                        "LapTime"
-                    ].dt.total_seconds()
+                    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].apply(
+                        lambda x: (
+                            x.total_seconds() if hasattr(x, "total_seconds") else x
+                        )
+                    )
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = driver_laps["LapNumber"].tolist()
 
