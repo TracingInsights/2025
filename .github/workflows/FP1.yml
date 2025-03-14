@@ -51,10 +51,10 @@ jobs:
         run: |
           git config --local user.name github-actions
           git config --local user.email "action@github.com"
+          git stash
           git pull origin main
-          git sparse-checkout reapply
+          git stash pop
           git add --sparse -A
-          git status
           git commit -m "Update telemetry data" || echo "No changes to commit"
           git push origin main
         env:
