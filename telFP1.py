@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-fastf1.logging.set_log_level(fastf1.logging.WARNING)
+logging.getLogger("fastf1").setLevel(logging.WARNING)
 
 fastf1.Cache.enable_cache("cache")
 YEAR = 2025
