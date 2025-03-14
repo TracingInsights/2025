@@ -740,8 +740,6 @@ if __name__ == "__main__":
         os.makedirs(cache_dir, exist_ok=True)
         fastf1.Cache.enable_cache(cache_dir)
 
-        # Limit memory usage for cache
-        fastf1.Cache.set_size_limit(500)
     else:
         fastf1.Cache.enable_cache("cache")
 
