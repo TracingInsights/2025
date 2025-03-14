@@ -245,8 +245,10 @@ def laps_data(
     driver_laps = laps.pick_drivers(driver)
     # Remove rows where LapTime is null
     driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
-    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
-        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else float(x)
+    driver_laps["LapTime"] = pd.to_numeric(
+        driver_laps["LapTime"].apply(
+            lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
+        )
     )
     return {
         "time": driver_laps["LapTime"].tolist(),
@@ -257,64 +259,87 @@ def laps_data(
 
 def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
     """Calculate acceleration data from telemetry."""
-    vx = allLapsDriverTelemetry["Speed"] / 3.6
-    time_float = allLapsDriverTelemetry["Time"] / np.timedelta64(1, "s")
+    # Convert to numpy arrays for faster operations
+    vx = allLapsDriverTelemetry["Speed"].to_numpy() / 3.6
+    time_float = (
+        allLapsDriverTelemetry["Time"].astype("timedelta64[ns]").astype(np.int64) / 1e9
+    )
     dtime = np.gradient(time_float)
     ax = np.gradient(vx) / dtime
 
-    for i in np.arange(1, len(ax) - 1).astype(int):
-        if ax[i] > 25:
-            ax[i] = ax[i - 1]
+    # Vectorized operation instead of loop
+    ax_mask = ax > 25
+    if np.any(ax_mask):
+        # Create a mask of indices to fix
+        indices = np.where(ax_mask)[0]
+        # For each index, replace with previous value
+        for i in indices:
+            if i > 0:  # Ensure we don't go out of bounds
+                ax[i] = ax[i - 1]
 
-    ax_smooth = np.convolve(ax, np.ones((Nax,)) / Nax, mode="same")
-    x = allLapsDriverTelemetry["X"]
-    y = allLapsDriverTelemetry["Y"]
-    z = allLapsDriverTelemetry["Z"]
+    # Use more efficient convolution
+    ax_smooth = np.convolve(ax, np.ones(Nax) / Nax, mode="same")
 
+    # Extract coordinates as numpy arrays
+    x = allLapsDriverTelemetry["X"].to_numpy()
+    y = allLapsDriverTelemetry["Y"].to_numpy()
+    z = allLapsDriverTelemetry["Z"].to_numpy()
+
+    # Calculate gradients
     dx = np.gradient(x)
     dy = np.gradient(y)
     dz = np.gradient(z)
 
-    theta = np.arctan2(dy, (dx + np.finfo(float).eps))
-    theta[0] = theta[1]
+    # Calculate theta with epsilon to avoid division by zero
+    eps = np.finfo(float).eps
+    theta = np.arctan2(dy, dx + eps)
+    theta[0] = theta[1]  # Fix first value
     theta_noDiscont = np.unwrap(theta)
 
-    dist = allLapsDriverTelemetry["Distance"]
+    dist = allLapsDriverTelemetry["Distance"].to_numpy()
     ds = np.gradient(dist)
     dtheta = np.gradient(theta_noDiscont)
 
-    for i in np.arange(1, len(dtheta) - 1).astype(int):
-        if abs(dtheta[i]) > 0.5:
-            dtheta[i] = dtheta[i - 1]
+    # Vectorized operation for dtheta correction
+    dtheta_mask = np.abs(dtheta) > 0.5
+    if np.any(dtheta_mask):
+        indices = np.where(dtheta_mask)[0]
+        for i in indices:
+            if i > 0:
+                dtheta[i] = dtheta[i - 1]
 
-    C = dtheta / (ds + 0.0001)  # To avoid division by 0
+    # Calculate curvature with small constant to avoid division by zero
+    C = dtheta / (ds + 0.0001)
 
+    # Calculate lateral acceleration
     ay = np.square(vx) * C
-    indexProblems = np.abs(ay) > 150
-    ay[indexProblems] = 0
 
-    ay_smooth = np.convolve(ay, np.ones((Nay,)) / Nay, mode="same")
+    # Vectorized masking for ay
+    ay[np.abs(ay) > 150] = 0
+    ay_smooth = np.convolve(ay, np.ones(Nay) / Nay, mode="same")
 
-    # for z
-    z_theta = np.arctan2(dz, (dx + np.finfo(float).eps))
+    # Similar calculations for z-axis
+    z_theta = np.arctan2(dz, dx + eps)
     z_theta[0] = z_theta[1]
     z_theta_noDiscont = np.unwrap(z_theta)
-
-    ds = np.gradient(dist)
     z_dtheta = np.gradient(z_theta_noDiscont)
 
-    for i in np.arange(1, len(z_dtheta) - 1).astype(int):
-        if abs(z_dtheta[i]) > 0.5:
-            z_dtheta[i] = z_dtheta[i - 1]
+    # Vectorized operation for z_dtheta correction
+    z_dtheta_mask = np.abs(z_dtheta) > 0.5
+    if np.any(z_dtheta_mask):
+        indices = np.where(z_dtheta_mask)[0]
+        for i in indices:
+            if i > 0:
+                z_dtheta[i] = z_dtheta[i - 1]
 
-    z_C = z_dtheta / (ds + 0.0001)  # To avoid division by 0
-
+    z_C = z_dtheta / (ds + 0.0001)
     az = np.square(vx) * z_C
-    indexProblems = np.abs(az) > 150
-    az[indexProblems] = 0
 
-    az_smooth = np.convolve(az, np.ones((Naz,)) / Naz, mode="same")
+    # Vectorized masking for az
+    az[np.abs(az) > 150] = 0
+    az_smooth = np.convolve(az, np.ones(Naz) / Naz, mode="same")
 
+    # Assign results back to DataFrame
     allLapsDriverTelemetry["Ax"] = ax_smooth
     allLapsDriverTelemetry["Ay"] = ay_smooth
     allLapsDriverTelemetry["Az"] = az_smooth
@@ -329,26 +354,25 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     laps = f1session.laps
 
     driver_laps = laps.pick_drivers(driver)
-    driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
-    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
-        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else float(x)
-    )
-
-    # Get the telemetry for lap_number
+    # Filter for the specific lap number first to avoid unnecessary processing
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
 
     if selected_lap.empty:
         logger.warning(f"No data for {driver} lap {lap_number} in {event} {session}")
         return None
 
+    # Only process the selected lap
     telemetry = selected_lap.get_telemetry()
     acc_tel = accCalc(telemetry, 3, 9, 9)
+
+    # Convert time to seconds more efficiently
     acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
 
     data_key = f"{year}-{event}-{session}-{driver}-{lap_number}"
 
-    acc_tel["DRS"] = acc_tel["DRS"].apply(lambda x: 1 if x in [10, 12, 14] else 0)
-    acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x == True else 0)
+    # Vectorized operations instead of apply
+    acc_tel["DRS"] = (acc_tel["DRS"].isin([10, 12, 14])).astype(int)
+    acc_tel["Brake"] = acc_tel["Brake"].astype(int)
 
     return {
         "tel": {
@@ -433,10 +457,12 @@ def process_telemetry_data():
                 logger.info(f"Processing telemetry data for {event} - {session}")
                 drivers = session_drivers_list(YEAR, event, session)
 
+                # Load session data once per session instead of per driver
+                f1session = get_session(YEAR, event, session)
+                f1session.load(telemetry=False, weather=False, messages=False)
+                laps = f1session.laps
+
                 for driver in drivers:
-                    f1session = get_session(YEAR, event, session)
-                    f1session.load(telemetry=False, weather=False, messages=False)
-                    laps = f1session.laps
                     driver_laps = laps.pick_drivers(driver)
                     driver_laps = (
                         driver_laps.dropna(subset=["LapTime"])
@@ -444,20 +470,22 @@ def process_telemetry_data():
                         .copy()
                     )
 
-                    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
-                        lambda x: (
-                            x.total_seconds()
-                            if hasattr(x, "total_seconds")
-                            else float(x)
+                    # Vectorized operations
+                    driver_laps["LapTime"] = pd.to_numeric(
+                        driver_laps["LapTime"].apply(
+                            lambda x: (
+                                x.total_seconds() if hasattr(x, "total_seconds") else x
+                            )
                         )
                     )
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = driver_laps["LapNumber"].tolist()
 
-                    for lap_number in driver_lap_numbers:
-                        driver_folder = f"{event}/{session}/{driver}"
-                        os.makedirs(driver_folder, exist_ok=True)
+                    # Create folder once per driver
+                    driver_folder = f"{event}/{session}/{driver}"
+                    os.makedirs(driver_folder, exist_ok=True)
 
+                    for lap_number in driver_lap_numbers:
                         try:
                             telemetry = telemetry_data(
                                 YEAR, event, session, driver, lap_number
