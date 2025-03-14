@@ -184,6 +184,7 @@ def get_sessions(year, event):
 
         return normal_sessions
 
+
 def session_drivers(year: int, event: str | int, session: str) -> any:
     # get drivers available for a given year, event and session
     import fastf1
@@ -237,8 +238,8 @@ def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
     # for each driver in drivers, get the Team column from laps and get the color from team_colors dict
     drivers_data = []
 
-    driver_laps = laps.pick_driver(driver)
-    driver_laps["LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+    driver_laps = laps.pick_drivers(driver)
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
     # remove rows where LapTime is null
     driver_laps = driver_laps[driver_laps.LapTime.notnull()]
 
@@ -329,8 +330,8 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     f1session.load(telemetry=True, weather=False, messages=False)
     laps = f1session.laps
 
-    driver_laps = laps.pick_driver(driver)
-    driver_laps["LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+    driver_laps = laps.pick_drivers(driver)
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
 
     # get the telemetry for lap_number
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
@@ -391,7 +392,7 @@ while True:
                     # f1session = fastf1.get_testing_session(2025, 1, 2)
                     f1session.load(telemetry=False, weather=False, messages=False)
                     laps = f1session.laps
-                    driver_laps = laps.pick_driver(driver)
+                    driver_laps = laps.pick_drivers(driver)
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = round(driver_laps["LapNumber"]).tolist()
 
@@ -495,8 +496,8 @@ while True:
             # for each driver in drivers, get the Team column from laps and get the color from team_colors dict
             drivers_data = []
 
-            driver_laps = laps.pick_driver(driver)
-            driver_laps["LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+            driver_laps = laps.pick_drivers(driver)
+            driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
             # remove rows where LapTime is null
             driver_laps = driver_laps[driver_laps.LapTime.notnull()]
 
