@@ -18,7 +18,20 @@ jobs:
           sparse-checkout: |
             telFP2.py
             requirements.txt
+            utils.py
           fetch-depth: 1
+
+      - name: Get active event
+        id: get-event
+        run: |
+          EVENT=$(grep -A1 "events = \[" telFP2.py | grep '"' | cut -d'"' -f2)
+          echo "EVENT=$EVENT" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config --global --add safe.directory /home/runner/work/2025/2025
+          git sparse-checkout set --skip-checks telFP2.py requirements.txt utils.py "${{ env.EVENT }}/**"
+          git sparse-checkout reapply
 
       - uses: actions/setup-python@v4
         with:
@@ -38,12 +51,12 @@ jobs:
         run: |
           git config --local user.name github-actions
           git config --local user.email "action@github.com"
+          git stash
           git pull origin main
-          git add .
-          if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update data" -a
-              git push -u origin main
-          fi
+          git stash pop
+          git add --sparse -A
+          git commit -m "Update telemetry data" || echo "No changes to commit"
+          git push origin main
         env:
           REPO_KEY: ${{secrets.GITHUB_TOKEN}}
           username: github-actions
