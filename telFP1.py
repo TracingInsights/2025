@@ -439,7 +439,11 @@ def process_telemetry_data():
                     f1session.load(telemetry=False, weather=False, messages=False)
                     laps = f1session.laps
                     driver_laps = laps.pick_drivers(driver)
-                    driver_laps = driver_laps.copy()
+                    driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
+                    if pd.api.types.is_timedelta64_dtype(driver_laps["LapTime"]):
+                        driver_laps.loc[:, "LapTime"] = driver_laps[
+                            "LapTime"
+                        ].dt.total_seconds()
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = driver_laps["LapNumber"].tolist()
 
