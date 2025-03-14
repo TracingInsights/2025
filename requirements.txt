@@ -1,1 +1,2 @@
 fastf1
+orjson
