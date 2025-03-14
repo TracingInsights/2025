@@ -247,7 +247,8 @@ def laps_data(
     driver_laps = driver_laps[driver_laps.LapTime.notnull()]
     driver_laps = driver_laps.copy()
     if pd.api.types.is_timedelta64_dtype(driver_laps["LapTime"]):
-        driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+        # Fix: Convert timedelta to seconds properly
+        driver_laps["LapTime"] = driver_laps["LapTime"].dt.total_seconds()
     return {
         "time": driver_laps["LapTime"].tolist(),
         "lap": driver_laps["LapNumber"].tolist(),
@@ -332,7 +333,8 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     driver_laps = driver_laps.copy()
     driver_laps = driver_laps[driver_laps.LapTime.notnull()]
     if pd.api.types.is_timedelta64_dtype(driver_laps["LapTime"]):
-        driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+        # Fix: Convert timedelta to seconds properly
+        driver_laps["LapTime"] = driver_laps["LapTime"].dt.total_seconds()
 
     # Get the telemetry for lap_number
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
