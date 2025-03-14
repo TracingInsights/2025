@@ -238,7 +238,9 @@ def convert_timedelta_to_seconds(df, column_name="LapTime"):
     """Helper function to safely convert timedelta columns to seconds."""
     if column_name in df.columns and pd.api.types.is_timedelta64_dtype(df[column_name]):
         df_copy = df.copy()
-        df_copy.loc[:, column_name] = df_copy[column_name].dt.total_seconds()
+        # Convert to float explicitly before assignment to avoid dtype incompatibility
+        seconds_values = df_copy[column_name].dt.total_seconds().astype(float)
+        df_copy.loc[:, column_name] = seconds_values
         return df_copy
     return df
 
