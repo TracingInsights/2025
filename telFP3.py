@@ -1,22 +1,24 @@
 import json
+import logging
 import os
+import time
+from typing import Any, Dict, List, Optional, Union
 
 import fastf1
 import numpy as np
 import pandas as pd
+import requests
 
 import utils
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 fastf1.Cache.enable_cache("cache")
 YEAR = 2025
-
-
-def events_available(year: int) -> any:
-    # get events available for a given year
-    data = utils.LatestData(year)
-    events = data.get_events()
-    return events
-
 
 events = [
     # "Pre-Season Testing",
@@ -50,15 +52,23 @@ sessions = [
 ]
 
 
-def sessions_available(year: int, event: str | int) -> any:
-    # get sessions available for a given year and event
+def events_available(year: int) -> Any:
+    """Get events available for a given year."""
+    data = utils.LatestData(year)
+    events = data.get_events()
+    return events
+
+
+def sessions_available(year: int, event: Union[str, int]) -> Any:
+    """Get sessions available for a given year and event."""
     event = str(event)
     data = utils.LatestData(year)
     sessions = data.get_sessions(event)
     return sessions
 
 
-def get_sessions(year, event):
+def get_sessions(year: int, event: str) -> List[str]:
+    """Get the appropriate session list based on year and event."""
     p1_p2_p3 = ["Practice 1", "Practice 2", "Practice 3"]
     p1_p2_q_r = ["Practice 1", "Practice 2", "Qualifying", "Race"]
     p2_p3_q_r = ["Practice 2", "Practice 3", "Qualifying", "Race"]
@@ -185,17 +195,22 @@ def get_sessions(year, event):
         return normal_sessions
 
 
-def session_drivers(year: int, event: str | int, session: str) -> any:
-    # get drivers available for a given year, event and session
-    import fastf1
+def get_session(year: int, event: str, session: str) -> fastf1.core.Session:
+    """Get F1 session with proper handling for testing sessions."""
+    if event == "Pre-Season Testing":
+        return fastf1.get_testing_session(year, 1, 1)
+    return fastf1.get_session(year, event, session)
 
-    f1session = fastf1.get_session(year, event, session)
-    # f1session = fastf1.get_testing_session(2025, 1, 3)
+
+def session_drivers(
+    year: int, event: Union[str, int], session: str
+) -> Dict[str, List[Dict[str, str]]]:
+    """Get drivers available for a given year, event and session with team information."""
+    f1session = get_session(year, event, session)
     f1session.load(telemetry=True, weather=False, messages=False)
 
     laps = f1session.laps
     team_colors = utils.team_colors(year)
-    # add team_colors dict to laps on Team column
     laps["color"] = laps["Team"].map(team_colors)
 
     unique_drivers = laps["Driver"].unique()
@@ -211,53 +226,37 @@ def session_drivers(year: int, event: str | int, session: str) -> any:
     return {"drivers": drivers}
 
 
-def session_drivers_list(year: int, event: str | int, session: str) -> any:
-    # get drivers available for a given year, event and session
-    import fastf1
-
-    f1session = fastf1.get_session(year, event, session)
-    # f1session = fastf1.get_testing_session(2025, 1, 3)
+def session_drivers_list(year: int, event: Union[str, int], session: str) -> List[str]:
+    """Get list of drivers available for a given year, event and session."""
+    f1session = get_session(year, event, session)
     f1session.load(telemetry=True, weather=False, messages=False)
-
     laps = f1session.laps
-
-    unique_drivers = laps["Driver"].unique()
-
-    return list(unique_drivers)
+    return list(laps["Driver"].unique())
 
 
-def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
-    # get drivers available for a given year, event, and session
-    f1session = fastf1.get_session(year, event, session)
-    # f1session = fastf1.get_testing_session(2025, 1, 3)
+def laps_data(
+    year: int, event: Union[str, int], session: str, driver: str
+) -> Dict[str, List]:
+    """Get lap data for a specific driver in a session."""
+    f1session = get_session(year, event, session)
     f1session.load(telemetry=False, weather=False, messages=False)
     laps = f1session.laps
 
-    # add team_colors dict to laps on Team column
-
-    # for each driver in drivers, get the Team column from laps and get the color from team_colors dict
-    drivers_data = []
-
     driver_laps = laps.pick_drivers(driver)
-    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
-    # remove rows where LapTime is null
-    driver_laps = driver_laps[driver_laps.LapTime.notnull()]
-
-    drivers_data = {
+    # Remove rows where LapTime is null
+    driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
+    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
+        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else float(x)
+    )
+    return {
         "time": driver_laps["LapTime"].tolist(),
         "lap": driver_laps["LapNumber"].tolist(),
         "compound": driver_laps["Compound"].tolist(),
     }
 
-    return drivers_data
-
-
-# # Example usage:
-# result = laps_data(2018, "Bahrain", "R", "GAS")
-# result
-
 
 def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
+    """Calculate acceleration data from telemetry."""
     vx = allLapsDriverTelemetry["Speed"] / 3.6
     time_float = allLapsDriverTelemetry["Time"] / np.timedelta64(1, "s")
     dtime = np.gradient(time_float)
@@ -301,7 +300,6 @@ def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
     z_theta[0] = z_theta[1]
     z_theta_noDiscont = np.unwrap(z_theta)
 
-    dist = allLapsDriverTelemetry["Distance"]
     ds = np.gradient(dist)
     z_dtheta = np.gradient(z_theta_noDiscont)
 
@@ -325,31 +323,34 @@ def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
 
 
 def telemetry_data(year, event, session: str, driver, lap_number):
-    f1session = fastf1.get_session(year, event, session)
-    # f1session = fastf1.get_testing_session(2025, 1, 3)
+    """Get telemetry data for a specific lap."""
+    f1session = get_session(year, event, session)
     f1session.load(telemetry=True, weather=False, messages=False)
     laps = f1session.laps
 
     driver_laps = laps.pick_drivers(driver)
-    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
+    driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
+    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
+        lambda x: x.total_seconds() if hasattr(x, "total_seconds") else float(x)
+    )
 
-    # get the telemetry for lap_number
+    # Get the telemetry for lap_number
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
 
+    if selected_lap.empty:
+        logger.warning(f"No data for {driver} lap {lap_number} in {event} {session}")
+        return None
+
     telemetry = selected_lap.get_telemetry()
-
     acc_tel = accCalc(telemetry, 3, 9, 9)
-
     acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
 
-    laptime = selected_lap.LapTime.values[0]
-    # data_key = f"{driver} - Lap {int(lap_number)} - {year} - {session} - [{laptime}]"
     data_key = f"{year}-{event}-{session}-{driver}-{lap_number}"
 
     acc_tel["DRS"] = acc_tel["DRS"].apply(lambda x: 1 if x in [10, 12, 14] else 0)
     acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x == True else 0)
 
-    telemetry_data = {
+    return {
         "tel": {
             "time": acc_tel["Time"].tolist(),
             "rpm": acc_tel["RPM"].tolist(),
@@ -369,265 +370,28 @@ def telemetry_data(year, event, session: str, driver, lap_number):
             "dataKey": data_key,
         }
     }
-    return telemetry_data
 
 
-while True:
-    try:
+def get_circuit_info(year: int, circuit_key: int) -> Optional[pd.DataFrame]:
+    """Get circuit information from the MultiViewer API."""
+    PROTO = "https"
+    HOST = "api.multiviewer.app"
+    HEADERS = {"User-Agent": f"FastF1/"}
 
-        # Your list of events
-        events_list = events
-
-        # Loop through each event
-        for event in events_list:
-            # Get sessions for the current event
-            # sessions = sessions_available(YEAR, event)
-
-            # Loop through each session and create a folder within the event folder
-            for session in sessions:
-                drivers = session_drivers_list(YEAR, event, session)
-
-                for driver in drivers:
-                    f1session = fastf1.get_session(YEAR, event, session)
-                    # f1session = fastf1.get_testing_session(2025, 1, 3)
-                    f1session.load(telemetry=False, weather=False, messages=False)
-                    laps = f1session.laps
-                    driver_laps = laps.pick_drivers(driver)
-                    driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
-                    driver_lap_numbers = round(driver_laps["LapNumber"]).tolist()
-
-                    for lap_number in driver_lap_numbers:
-                        driver_folder = f"{event}/{session}/{driver}"
-                        if not os.path.exists(driver_folder):
-                            os.makedirs(driver_folder)
-
-                        try:
-
-                            telemetry = telemetry_data(
-                                YEAR, event, session, driver, lap_number
-                            )
-
-                            # print(telemetry)
-
-                            # Specify the file path where you want to save the JSON data
-                            file_path = f"{driver_folder}/{lap_number}_tel.json"
-
-                            # Save the dictionary to a JSON file
-                            with open(file_path, "w") as json_file:
-                                json.dump(telemetry, json_file)
-                        except:
-                            continue
-
-        def session_drivers(year: int, event: str | int, session: str) -> any:
-            # get drivers available for a given year, event and session
-            import fastf1
-
-            f1session = fastf1.get_session(year, event, session)
-            # f1session = fastf1.get_testing_session(2025, 1, 3)
-            f1session.load(telemetry=True, weather=False, messages=False)
-
-            laps = f1session.laps
-            team_colors = utils.team_colors(year)
-            # add team_colors dict to laps on Team column
-            laps["color"] = laps["Team"].map(team_colors)
-
-            unique_drivers = laps["Driver"].unique()
-
-            drivers = [
-                {
-                    "driver": driver,
-                    "team": laps[laps.Driver == driver].Team.iloc[0],
-                }
-                for driver in unique_drivers
-            ]
-
-            return {"drivers": drivers}
-
-        import json
-        import os
-
-        import utils
-
-        # Loop through each event
-        for event in events_list:
-
-            # sessions = sessions_available(YEAR, event)
-
-            # sessions = ['Practice 1','Practice 2','Practice 3']
-
-            # Loop through each session and create a folder within the event folder
-            for session in sessions:
-                drivers = session_drivers(YEAR, event, session)
-
-                import json
-
-                # Specify the file path where you want to save the JSON data
-                file_path = f"{event}/{session}/drivers.json"
-
-                # Save the dictionary to a JSON file
-                with open(file_path, "w") as json_file:
-                    json.dump(drivers, json_file)
-
-                print(f"Dictionary saved to {file_path}")
-
-        def session_drivers_list(year: int, event: str | int, session: str) -> any:
-            # get drivers available for a given year, event and session
-            import fastf1
-
-            f1session = fastf1.get_session(year, event, session)
-            # f1session = fastf1.get_testing_session(2025, 1, 3)
-            f1session.load(telemetry=True, weather=False, messages=False)
-
-            laps = f1session.laps
-
-            unique_drivers = laps["Driver"].unique()
-
-            return list(unique_drivers)
-
-        def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
-            # get drivers available for a given year, event, and session
-            f1session = fastf1.get_session(year, event, session)
-            # f1session = fastf1.get_testing_session(2025, 1, 3)
-            f1session.load(telemetry=False, weather=False, messages=False)
-            laps = f1session.laps
-
-            # add team_colors dict to laps on Team column
-
-            # for each driver in drivers, get the Team column from laps and get the color from team_colors dict
-            drivers_data = []
-
-            driver_laps = laps.pick_drivers(driver)
-            driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
-            # remove rows where LapTime is null
-            driver_laps = driver_laps[driver_laps.LapTime.notnull()]
-
-            drivers_data = {
-                "time": driver_laps["LapTime"].tolist(),
-                "lap": driver_laps["LapNumber"].tolist(),
-                "compound": driver_laps["Compound"].tolist(),
-            }
-
-            return drivers_data
-
-        # Loop through each event
-        for event in events_list:
-
-            # # Get sessions for the current event
-            # if event == "Qatar Grand Prix":
-            #     sessions = ['Practice 1', 'Qualifying', 'Sprint Shootout', 'Sprint', 'Race']
-            # else:
-            #     sessions = sessions_available(YEAR, event)
-
-            # Loop through each session and create a folder within the event folder
-            for session in sessions:
-                drivers = session_drivers_list(YEAR, event, session)
-
-                for driver in drivers:
-                    # Create a folder for the driver if it doesn't exist
-                    driver_folder = f"{event}/{session}/{driver}"
-                    if not os.path.exists(driver_folder):
-                        os.makedirs(driver_folder)
-
-                    laptimes = laps_data(YEAR, event, session, driver)
-
-                    # Specify the file path where you want to save the JSON data
-                    file_path = f"{driver_folder}/laptimes.json"
-
-                    # Save the dictionary to a JSON file
-                    with open(file_path, "w") as json_file:
-                        json.dump(laptimes, json_file)
-
-                    # print(f"Dictionary saved to {file_path}")
-
-        # corners
-
-        import json
-        import os
-
-        import fastf1
-
-        import utils
-
-        def sessions_available(year: int, event: str | int) -> any:
-            # get sessions available for a given year and event
-            event = str(event)
-            data = utils.LatestData(year)
-            sessions = data.get_sessions(event)
-            return sessions
-
-        for event in events:
-
-            for session in sessions:
-                f1session = fastf1.get_session(YEAR, event, session)
-                # f1session = fastf1.get_testing_session(2025, 1, 3)
-                f1session.load()
-                circuit_info = f1session.get_circuit_info().corners
-                corner_info = {
-                    "CornerNumber": circuit_info["Number"].tolist(),
-                    "X": circuit_info["X"].tolist(),
-                    "Y": circuit_info["Y"].tolist(),
-                    "Angle": circuit_info["Angle"].tolist(),
-                    "Distance": circuit_info["Distance"].tolist(),
-                }
-
-                driver_folder = f"{event}/{session}"
-                file_path = f"{event}/{session}/corners.json"
-                if not os.path.exists(driver_folder):
-                    os.makedirs(driver_folder)
-                # Save the dictionary to a JSON file
-                with open(file_path, "w") as json_file:
-                    json.dump(corner_info, json_file)
-        break
-    except:
-        import time
-
-        time.sleep(5)
-        continue
-
-
-# corner data
-
-
-from fastf1.req import Cache
-
-PROTO = "https"
-HOST = "api.multiviewer.app"
-HEADERS = {"User-Agent": f"FastF1/"}
-
-
-def _make_url(path: str):
-    return f"{PROTO}://{HOST}{path}"
-
-
-def get_circuit(*, year: int, circuit_key: int):
-    """:meta private:
-    Request circuit data from the MultiViewer API and return the JSON
-    response."""
-    url = _make_url(f"/api/v1/circuits/{circuit_key}/{year}")
-    response = Cache.requests_get(url, headers=HEADERS)
-    if response.status_code != 200:
-        _logger.debug(f"[{response.status_code}] {response.content.decode()}")
-        return None
+    url = f"{PROTO}://{HOST}/api/v1/circuits/{circuit_key}/{year}"
 
     try:
-        return response.json()
-    except requests.exceptions.JSONDecodeError:
-        return None
+        response = fastf1.req.Cache.requests_get(url, headers=HEADERS)
+        if response.status_code != 200:
+            logger.debug(f"[{response.status_code}] {response.content.decode()}")
+            return None
 
-
-def get_circuit_info(*, year: int, circuit_key: int):
-    """:meta private:
-    Load circuit information from the MultiViewer API and convert it into
-    as :class:``SessionInfo`` object.
-
-    Args:
-        year: The championship year
-        circuit_key: The unique circuit key (defined by the F1 livetiming API)
-    """
-    data = get_circuit(year=year, circuit_key=circuit_key)
-
-    if not data:
-        _logger.warning("Failed to load circuit info")
+        data = response.json()
+    except (
+        requests.exceptions.JSONDecodeError,
+        requests.exceptions.RequestException,
+    ) as e:
+        logger.error(f"Error fetching circuit data: {e}")
         return None
 
     ret = list()
@@ -650,32 +414,202 @@ def get_circuit_info(*, year: int, circuit_key: int):
             )
         )
 
-    rotation = float(data.get("rotation", 0.0))
-
-    circuit_info = ret[0]
-
-    return circuit_info
+    return ret[0]  # Return corners data
 
 
-for event in events:
-    for session in sessions:
-        f1session = fastf1.get_session(YEAR, event, session)
-        # f1session = fastf1.get_testing_session(2025, 1, 3)
-        f1session.load()
-        circuit_key = f1session.session_info["Meeting"]["Circuit"]["Key"]
-        circuit_info = get_circuit_info(year=YEAR, circuit_key=circuit_key)
-        corner_info = {
-            "CornerNumber": circuit_info["Number"].tolist(),
-            "X": circuit_info["X"].tolist(),
-            "Y": circuit_info["Y"].tolist(),
-            "Angle": circuit_info["Angle"].tolist(),
-            "Distance": (circuit_info["Distance"] / 10).tolist(),
-        }
+def save_json(data: Any, file_path: str) -> None:
+    """Save data to a JSON file, creating directories if needed."""
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w") as json_file:
+        json.dump(data, json_file)
+    logger.debug(f"Data saved to {file_path}")
 
-        driver_folder = f"{event}/{session}"
-        file_path = f"{event}/{session}/corners.json"
-        if not os.path.exists(driver_folder):
-            os.makedirs(driver_folder)
-        # Save the dictionary to a JSON file
-        with open(file_path, "w") as json_file:
-            json.dump(corner_info, json_file)
+
+def process_telemetry_data():
+    """Process and save telemetry data for all specified events and sessions."""
+    for event in events:
+        for session in sessions:
+            try:
+                logger.info(f"Processing telemetry data for {event} - {session}")
+                drivers = session_drivers_list(YEAR, event, session)
+
+                for driver in drivers:
+                    f1session = get_session(YEAR, event, session)
+                    f1session.load(telemetry=False, weather=False, messages=False)
+                    laps = f1session.laps
+                    driver_laps = laps.pick_drivers(driver)
+                    driver_laps = (
+                        driver_laps.dropna(subset=["LapTime"])
+                        .reset_index(drop=True)
+                        .copy()
+                    )
+
+                    driver_laps["LapTime"] = driver_laps["LapTime"].apply(
+                        lambda x: (
+                            x.total_seconds()
+                            if hasattr(x, "total_seconds")
+                            else float(x)
+                        )
+                    )
+                    driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
+                    driver_lap_numbers = driver_laps["LapNumber"].tolist()
+
+                    for lap_number in driver_lap_numbers:
+                        driver_folder = f"{event}/{session}/{driver}"
+                        os.makedirs(driver_folder, exist_ok=True)
+
+                        try:
+                            telemetry = telemetry_data(
+                                YEAR, event, session, driver, lap_number
+                            )
+                            if telemetry:
+                                file_path = f"{driver_folder}/{lap_number}_tel.json"
+                                save_json(telemetry, file_path)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error processing telemetry for {driver} lap {lap_number}: {e}"
+                            )
+                            continue
+            except Exception as e:
+                logger.error(f"Error processing {event} - {session}: {e}")
+                continue
+
+
+def save_drivers_data():
+    """Save driver information for each event and session."""
+    for event in events:
+        for session in sessions:
+            try:
+                logger.info(f"Saving driver data for {event} - {session}")
+                drivers_info = session_drivers(YEAR, event, session)
+                file_path = f"{event}/{session}/drivers.json"
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                save_json(drivers_info, file_path)
+                logger.info(f"Driver data saved to {file_path}")
+            except Exception as e:
+                logger.error(f"Error saving driver data for {event} - {session}: {e}")
+
+
+def save_lap_times():
+    """Save lap times for each driver in each event and session."""
+    for event in events:
+        for session in sessions:
+            try:
+                logger.info(f"Saving lap times for {event} - {session}")
+                drivers = session_drivers_list(YEAR, event, session)
+
+                for driver in drivers:
+                    driver_folder = f"{event}/{session}/{driver}"
+                    os.makedirs(driver_folder, exist_ok=True)
+
+                    laptimes = laps_data(YEAR, event, session, driver)
+                    file_path = f"{driver_folder}/laptimes.json"
+                    save_json(laptimes, file_path)
+            except Exception as e:
+                logger.error(f"Error saving lap times for {event} - {session}: {e}")
+
+
+def save_circuit_data():
+    """Save circuit and corner information for each event and session."""
+    for event in events:
+        for session in sessions:
+            try:
+                logger.info(f"Saving circuit data for {event} - {session}")
+                # Method 1: Using FastF1's built-in circuit info
+                f1session = get_session(YEAR, event, session)
+                f1session.load()
+
+                try:
+                    # Try to get circuit info from FastF1
+                    circuit_info = f1session.get_circuit_info().corners
+                    corner_info = {
+                        "CornerNumber": circuit_info["Number"].tolist(),
+                        "X": circuit_info["X"].tolist(),
+                        "Y": circuit_info["Y"].tolist(),
+                        "Angle": circuit_info["Angle"].tolist(),
+                        "Distance": circuit_info["Distance"].tolist(),
+                    }
+                except Exception as e:
+                    logger.warning(f"Error getting circuit info from FastF1: {e}")
+
+                    # Method 2: Using MultiViewer API as fallback
+                    try:
+                        circuit_key = f1session.session_info["Meeting"]["Circuit"][
+                            "Key"
+                        ]
+                        circuit_info = get_circuit_info(
+                            year=YEAR, circuit_key=circuit_key
+                        )
+                        if circuit_info is not None:
+                            corner_info = {
+                                "CornerNumber": circuit_info["Number"].tolist(),
+                                "X": circuit_info["X"].tolist(),
+                                "Y": circuit_info["Y"].tolist(),
+                                "Angle": circuit_info["Angle"].tolist(),
+                                "Distance": (circuit_info["Distance"] / 10).tolist(),
+                            }
+                        else:
+                            logger.error(f"Failed to get circuit info for {event}")
+                            continue
+                    except Exception as e2:
+                        logger.error(f"Error getting circuit info from API: {e2}")
+                        continue
+
+                folder_path = f"{event}/{session}"
+                os.makedirs(folder_path, exist_ok=True)
+                file_path = f"{folder_path}/corners.json"
+                save_json(corner_info, file_path)
+                logger.info(f"Circuit data saved to {file_path}")
+            except Exception as e:
+                logger.error(f"Error saving circuit data for {event} - {session}: {e}")
+
+
+def main():
+    """Main function to run all data collection processes."""
+    try:
+        logger.info(f"Starting data collection for year {YEAR}")
+
+        # Process all data types
+        process_telemetry_data()
+        save_drivers_data()
+        save_lap_times()
+        save_circuit_data()
+
+        logger.info("Data collection completed successfully")
+    except Exception as e:
+        logger.error(f"Error in main process: {e}")
+        # Wait and retry once
+        logger.info("Waiting 5 seconds before retrying...")
+        time.sleep(5)
+        try:
+            logger.info("Retrying data collection...")
+            process_telemetry_data()
+            save_drivers_data()
+            save_lap_times()
+            save_circuit_data()
+            logger.info("Retry completed successfully")
+        except Exception as e2:
+            logger.error(f"Error in retry: {e2}")
+
+
+if __name__ == "__main__":
+    # Import any missing modules needed for the circuit info API
+    try:
+        import requests
+    except ImportError:
+        logger.error(
+            "Missing required module: requests. Please install with 'pip install requests'"
+        )
+
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler("f1_data_collection.log"),
+            logging.StreamHandler(),
+        ],
+    )
+
+    # Run the main function
+    main()
