@@ -330,6 +330,7 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     laps = f1session.laps
 
     driver_laps = laps.pick_drivers(driver)
+    driver_laps = driver_laps.copy()
     driver_laps.loc[:, "LapTime"] = (
         driver_laps["LapTime"].dt.total_seconds().astype("float64")
     )
@@ -438,6 +439,7 @@ def process_telemetry_data():
                     f1session.load(telemetry=False, weather=False, messages=False)
                     laps = f1session.laps
                     driver_laps = laps.pick_drivers(driver)
+                    driver_laps = driver_laps.copy()
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = driver_laps["LapNumber"].tolist()
 
