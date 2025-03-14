@@ -417,6 +417,14 @@ def get_circuit_info(year: int, circuit_key: int) -> Optional[pd.DataFrame]:
     return ret[0]  # Return corners data
 
 
+def save_json(data: Any, file_path: str) -> None:
+    """Save data to a JSON file, creating directories if needed."""
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w") as json_file:
+        json.dump(data, json_file)
+    logger.debug(f"Data saved to {file_path}")
+
+
 def process_telemetry_data():
     """Process and save telemetry data for all specified events and sessions."""
     for event in events:
