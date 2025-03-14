@@ -51,8 +51,8 @@ jobs:
           git config --local user.name github-actions
           git config --local user.email "action@github.com"
           git pull origin main
-          git add -A
-          git add "${{ env.EVENT }}/Practice 1/**/*.json" --force
+          git add --sparse -A
+          git add --sparse "${{ env.EVENT }}/Practice 1/**/*.json" --force
           git commit -m "Update telemetry data" || echo "No changes to commit"
           git push origin main
         env:
