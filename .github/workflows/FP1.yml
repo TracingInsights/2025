@@ -31,6 +31,7 @@ jobs:
         run: |
           git config --global --add safe.directory /home/runner/work/2025/2025
           git sparse-checkout set --skip-checks telFP1.py requirements.txt utils.py "${{ env.EVENT }}/**"
+          git sparse-checkout reapply
 
       - uses: actions/setup-python@v4
         with:
@@ -51,8 +52,9 @@ jobs:
           git config --local user.name github-actions
           git config --local user.email "action@github.com"
           git pull origin main
+          git sparse-checkout reapply
           git add --sparse -A
-          git add --sparse "${{ env.EVENT }}/Practice 1/**/*.json" --force
+          git status
           git commit -m "Update telemetry data" || echo "No changes to commit"
           git push origin main
         env:
