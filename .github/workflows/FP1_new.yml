@@ -19,13 +19,14 @@ jobs:
             telFP1.py
             requirements.txt
           fetch-depth: 1
-          lfs: false
-          submodules: false
 
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
           cache: 'pip'
+
+      - name: Create cache directory
+        run: mkdir -p cache
 
       - name: Install requirements
         run: pip install -r requirements.txt
