@@ -22,9 +22,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-fastf1.logging.set_log_level(fastf1.logging.WARNING)
-fastf1_logger = logging.getLogger("fastf1")
-fastf1_logger.propagate = False
+logging.getLogger("fastf1").setLevel(logging.WARNING)
+# Prevent propagation to avoid duplicate logs
+logging.getLogger("fastf1").propagate = False
 
 fastf1.Cache.enable_cache("cache")
 YEAR = 2025
