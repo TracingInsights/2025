@@ -1,4 +1,5 @@
 import concurrent.futures
+import gc
 import logging
 import os
 import time
@@ -12,6 +13,8 @@ import pandas as pd
 import requests
 
 import utils
+
+pd.options.mode.chained_assignment = None
 
 # Configure logging
 logging.basicConfig(
@@ -450,7 +453,7 @@ def save_json(data: Any, file_path: str) -> None:
     """Save data to a JSON file using orjson for better performance."""
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, "wb") as json_file:
-        json_file.write(json_lib.dumps(data))
+        json_file.write(json_lib.dumps(data, option=json_lib.OPT_SERIALIZE_NUMPY))
     logger.debug(f"Data saved to {file_path}")
 
 
@@ -466,9 +469,13 @@ def process_telemetry_data():
                 f1session = get_session(YEAR, event, session)
                 f1session.load(telemetry=False, weather=False, messages=False)
                 laps = f1session.laps
-
+                # Optimize worker count based on GitHub Actions environment
+                # GitHub-hosted runners typically have 2 cores
+                max_workers = min(4, os.cpu_count() or 2)
                 # Process drivers in parallel
-                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=max_workers
+                ) as executor:
                     futures = []
                     for driver in drivers:
                         futures.append(
@@ -515,17 +522,24 @@ def process_driver_telemetry(year, event, session, driver, laps):
         driver_folder = f"{event}/{session}/{driver}"
         os.makedirs(driver_folder, exist_ok=True)
 
-        for lap_number in driver_lap_numbers:
-            try:
-                telemetry = telemetry_data(year, event, session, driver, lap_number)
-                if telemetry:
-                    file_path = f"{driver_folder}/{lap_number}_tel.json"
-                    save_json(telemetry, file_path)
-            except Exception as e:
-                logger.warning(
-                    f"Error processing telemetry for {driver} lap {lap_number}: {e}"
-                )
-                continue
+        # Process in smaller batches to reduce memory usage
+        batch_size = 5
+        for i in range(0, len(driver_lap_numbers), batch_size):
+            batch_laps = driver_lap_numbers[i : i + batch_size]
+            for lap_number in batch_laps:
+                try:
+                    telemetry = telemetry_data(year, event, session, driver, lap_number)
+                    if telemetry:
+                        file_path = f"{driver_folder}/{lap_number}_tel.json"
+                        save_json(telemetry, file_path)
+                        # Force garbage collection after each lap
+                        if i % batch_size == batch_size - 1:
+                            gc.collect()
+                except Exception as e:
+                    logger.warning(
+                        f"Error processing telemetry for {driver} lap {lap_number}: {e}"
+                    )
+                    continue
     except Exception as e:
         logger.error(f"Error processing driver {driver}: {e}")
 
@@ -660,10 +674,19 @@ def main():
     try:
         logger.info(f"Starting data collection for year {YEAR}")
 
+        # Clear memory before starting
+        gc.collect()
+
         # Process all data types
         process_telemetry_data()
+        gc.collect()  # Force garbage collection between major operations
+
         save_drivers_data()
+        gc.collect()
+
         save_lap_times()
+        gc.collect()
+
         save_circuit_data()
 
         logger.info("Data collection completed successfully")
@@ -672,11 +695,15 @@ def main():
         # Wait and retry once
         logger.info("Waiting 5 seconds before retrying...")
         time.sleep(5)
+        gc.collect()  # Clear memory before retry
         try:
             logger.info("Retrying data collection...")
             process_telemetry_data()
+            gc.collect()
             save_drivers_data()
+            gc.collect()
             save_lap_times()
+            gc.collect()
             save_circuit_data()
             logger.info("Retry completed successfully")
         except Exception as e2:
@@ -712,6 +739,9 @@ if __name__ == "__main__":
         cache_dir = os.environ.get("GITHUB_WORKSPACE", "") + "/fastf1_cache"
         os.makedirs(cache_dir, exist_ok=True)
         fastf1.Cache.enable_cache(cache_dir)
+
+        # Limit memory usage for cache
+        fastf1.Cache.set_size_limit(500)
     else:
         fastf1.Cache.enable_cache("cache")
 
