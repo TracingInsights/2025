@@ -241,8 +241,8 @@ def laps_data(year: int, event: str | int, session: str, driver: str) -> any:
     drivers_data = []
 
     driver_laps = laps.pick_drivers(driver)
-    driver_laps.loc[:, "LapTime"] = pd.to_numeric(
-        driver_laps["LapTime"].dt.total_seconds(), errors="coerce"
+    driver_laps.loc[:, "LapTime"] = (
+        driver_laps["LapTime"].dt.total_seconds().astype("float64")
     )
     # remove rows where LapTime is null
     driver_laps = driver_laps[driver_laps.LapTime.notnull()]
@@ -335,8 +335,8 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     laps = f1session.laps
 
     driver_laps = laps.pick_drivers(driver)
-    driver_laps.loc[:, "LapTime"] = pd.to_numeric(
-        driver_laps["LapTime"].dt.total_seconds(), errors="coerce"
+    driver_laps.loc[:, "LapTime"] = (
+        driver_laps["LapTime"].dt.total_seconds().astype("float64")
     )
 
     # get the telemetry for lap_number
@@ -503,8 +503,8 @@ while True:
             drivers_data = []
 
             driver_laps = laps.pick_drivers(driver)
-            driver_laps.loc[:, "LapTime"] = pd.to_numeric(
-                driver_laps["LapTime"].dt.total_seconds(), errors="coerce"
+            driver_laps.loc[:, "LapTime"] = (
+                driver_laps["LapTime"].dt.total_seconds().astype("float64")
             )
 
             # remove rows where LapTime is null
