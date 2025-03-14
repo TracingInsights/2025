@@ -340,100 +340,51 @@ def accCalc(allLapsDriverTelemetry, Nax, Nay, Naz):
 
 def telemetry_data(year, event, session: str, driver, lap_number):
     """Get telemetry data for a specific lap."""
-    try:
-        f1session = get_session(year, event, session)
-        f1session.load(telemetry=True, weather=False, messages=False)
-        laps = f1session.laps
+    f1session = get_session(year, event, session)
+    f1session.load(telemetry=True, weather=False, messages=False)
+    laps = f1session.laps
 
-        driver_laps = laps.pick_drivers(driver)
-        driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
+    driver_laps = laps.pick_drivers(driver)
+    driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
 
-        driver_laps = convert_timedelta_to_seconds(driver_laps)
+    driver_laps = convert_timedelta_to_seconds(driver_laps)
 
-        # Get the telemetry for lap_number
-        selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
+    # Get the telemetry for lap_number
+    selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
 
-        if selected_lap.empty:
-            logger.warning(
-                f"No data for {driver} lap {lap_number} in {event} {session}"
-            )
-            return None
-
-        # Try to get telemetry and handle potential None return
-        try:
-            telemetry = selected_lap.get_telemetry()
-            if telemetry is None or telemetry.empty:
-                logger.warning(
-                    f"No telemetry data available for {driver} lap {lap_number}"
-                )
-                return None
-
-            # Check for required columns
-            required_columns = [
-                "Time",
-                "X",
-                "Y",
-                "Z",
-                "Speed",
-                "Distance",
-                "RelativeDistance",
-                "RPM",
-                "nGear",
-                "Throttle",
-                "Brake",
-                "DRS",
-            ]
-            missing_columns = [
-                col for col in required_columns if col not in telemetry.columns
-            ]
-
-            if missing_columns:
-                logger.warning(
-                    f"Missing required telemetry columns for {driver} lap {lap_number}: {missing_columns}"
-                )
-                return None
-
-            acc_tel = accCalc(telemetry, 3, 9, 9)
-            acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
-
-            data_key = f"{year}-{event}-{session}-{driver}-{lap_number}"
-
-            acc_tel["DRS"] = acc_tel["DRS"].apply(
-                lambda x: 1 if x in [10, 12, 14] else 0
-            )
-            acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x == True else 0)
-
-            return {
-                "tel": {
-                    "time": acc_tel["Time"].tolist(),
-                    "rpm": acc_tel["RPM"].tolist(),
-                    "speed": acc_tel["Speed"].tolist(),
-                    "gear": acc_tel["nGear"].tolist(),
-                    "throttle": acc_tel["Throttle"].tolist(),
-                    "brake": acc_tel["Brake"].tolist(),
-                    "drs": acc_tel["DRS"].tolist(),
-                    "distance": acc_tel["Distance"].tolist(),
-                    "rel_distance": acc_tel["RelativeDistance"].tolist(),
-                    "acc_x": acc_tel["Ax"].tolist(),
-                    "acc_y": acc_tel["Ay"].tolist(),
-                    "acc_z": acc_tel["Az"].tolist(),
-                    "x": acc_tel["X"].tolist(),
-                    "y": acc_tel["Y"].tolist(),
-                    "z": acc_tel["Z"].tolist(),
-                    "dataKey": data_key,
-                }
-            }
-        except Exception as e:
-            logger.warning(
-                f"Error processing telemetry data for {driver} lap {lap_number}: {str(e)}"
-            )
-            return None
-
-    except Exception as e:
-        logger.warning(
-            f"Error retrieving telemetry for {driver} lap {lap_number}: {str(e)}"
-        )
+    if selected_lap.empty:
+        logger.warning(f"No data for {driver} lap {lap_number} in {event} {session}")
         return None
+
+    telemetry = selected_lap.get_telemetry()
+    acc_tel = accCalc(telemetry, 3, 9, 9)
+    acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
+
+    data_key = f"{year}-{event}-{session}-{driver}-{lap_number}"
+
+    acc_tel["DRS"] = acc_tel["DRS"].apply(lambda x: 1 if x in [10, 12, 14] else 0)
+    acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x == True else 0)
+
+    return {
+        "tel": {
+            "time": acc_tel["Time"].tolist(),
+            "rpm": acc_tel["RPM"].tolist(),
+            "speed": acc_tel["Speed"].tolist(),
+            "gear": acc_tel["nGear"].tolist(),
+            "throttle": acc_tel["Throttle"].tolist(),
+            "brake": acc_tel["Brake"].tolist(),
+            "drs": acc_tel["DRS"].tolist(),
+            "distance": acc_tel["Distance"].tolist(),
+            "rel_distance": acc_tel["RelativeDistance"].tolist(),
+            "acc_x": acc_tel["Ax"].tolist(),
+            "acc_y": acc_tel["Ay"].tolist(),
+            "acc_z": acc_tel["Az"].tolist(),
+            "x": acc_tel["X"].tolist(),
+            "y": acc_tel["Y"].tolist(),
+            "z": acc_tel["Z"].tolist(),
+            "dataKey": data_key,
+        }
+    }
 
 
 def get_circuit_info(year: int, circuit_key: int) -> Optional[pd.DataFrame]:
