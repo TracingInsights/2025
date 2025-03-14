@@ -25,16 +25,12 @@ jobs:
         id: get-event
         run: |
           EVENT=$(grep -A1 "events = \[" telFP1.py | grep '"' | cut -d'"' -f2)
-          echo "EVENT=\"$EVENT\"" >> $GITHUB_ENV
+          echo "EVENT=$EVENT" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v3
-        with:
-          sparse-checkout: |
-            telFP1.py
-            requirements.txt
-            utils.py
-            "${{ env.EVENT }}"/**
-          fetch-depth: 1
+      - name: Configure Git
+        run: |
+          git config --global --add safe.directory /home/runner/work/2025/2025
+          git sparse-checkout set --skip-checks telFP1.py requirements.txt utils.py "${{ env.EVENT }}/**"
 
       - uses: actions/setup-python@v4
         with:
