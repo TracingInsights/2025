@@ -234,24 +234,6 @@ def session_drivers_list(year: int, event: Union[str, int], session: str) -> Lis
     return list(laps["Driver"].unique())
 
 
-def convert_timedelta_to_seconds(df, column_name="LapTime"):
-    """Helper function to safely convert timedelta columns to seconds."""
-    if column_name in df.columns and pd.api.types.is_timedelta64_dtype(df[column_name]):
-        df_copy = df.copy()
-        # Create a new Series with the converted values
-        seconds_values = df_copy[column_name].dt.total_seconds().astype(float)
-
-        # Create a new DataFrame with the converted column
-        df_copy = df_copy.drop(column_name, axis=1)
-        df_copy = pd.concat(
-            [df_copy, pd.Series(seconds_values, name=column_name, index=df_copy.index)],
-            axis=1,
-        )
-
-        return df_copy
-    return df
-
-
 def laps_data(
     year: int, event: Union[str, int], session: str, driver: str
 ) -> Dict[str, List]:
@@ -262,8 +244,8 @@ def laps_data(
 
     driver_laps = laps.pick_drivers(driver)
     # Remove rows where LapTime is null
-    driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
-    driver_laps = convert_timedelta_to_seconds(driver_laps)
+    driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
     return {
         "time": driver_laps["LapTime"].tolist(),
         "lap": driver_laps["LapNumber"].tolist(),
@@ -345,9 +327,9 @@ def telemetry_data(year, event, session: str, driver, lap_number):
     laps = f1session.laps
 
     driver_laps = laps.pick_drivers(driver)
-    driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
+    driver_laps = driver_laps.dropna(subset=["LapTime"]).reset_index(drop=True).copy()
 
-    driver_laps = convert_timedelta_to_seconds(driver_laps)
+    driver_laps.loc[:, "LapTime"] = driver_laps["LapTime"].dt.total_seconds()
 
     # Get the telemetry for lap_number
     selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
@@ -453,8 +435,14 @@ def process_telemetry_data():
                     f1session.load(telemetry=False, weather=False, messages=False)
                     laps = f1session.laps
                     driver_laps = laps.pick_drivers(driver)
-                    driver_laps = driver_laps[driver_laps.LapTime.notnull()].copy()
-                    driver_laps = convert_timedelta_to_seconds(driver_laps)
+                    driver_laps = (
+                        driver_laps.dropna(subset=["LapTime"])
+                        .reset_index(drop=True)
+                        .copy()
+                    )
+                    driver_laps.loc[:, "LapTime"] = driver_laps[
+                        "LapTime"
+                    ].dt.total_seconds()
                     driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
                     driver_lap_numbers = driver_laps["LapNumber"].tolist()
 
