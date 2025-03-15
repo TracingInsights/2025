@@ -1,9 +1,9 @@
 name: Q
 
-on:
+on: 
   workflow_dispatch:
   schedule:
-    - cron: '0 5 15 3 *'
+    - cron: '30 15 7 12 *'
 
 env:
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
@@ -13,27 +13,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-        with:
-          sparse-checkout: |
-            telQ.py
-            requirements.txt
-          fetch-depth: 1
-
-      - uses: actions/setup-python@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v2.0.0
         with:
           python-version: '3.10'
-          cache: 'pip'
-
-      - name: Create cache directory
-        run: mkdir -p cache
-
       - name: Install requirements
         run: pip install -r requirements.txt
-
       - name: Run Telemetry
         run: python telQ.py run-all
-
       - name: Commit changes
         run: |
           git config --local user.name github-actions
@@ -46,4 +35,5 @@ jobs:
           fi
         env:
           REPO_KEY: ${{secrets.GITHUB_TOKEN}}
-          username: github-actions
+          username: github-actions   
+      
