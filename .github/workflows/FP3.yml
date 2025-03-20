@@ -1,9 +1,9 @@
-name: FP3
+name: R
 
-on: 
+on:
   workflow_dispatch:
   schedule:
-    - cron: '0 12 7 12 *'
+    - cron: '30 15 7 12 *'
 
 env:
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
@@ -35,5 +35,4 @@ jobs:
           fi
         env:
           REPO_KEY: ${{secrets.GITHUB_TOKEN}}
-          username: github-actions   
-      
+          username: github-actions
