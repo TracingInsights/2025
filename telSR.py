@@ -49,7 +49,7 @@ class TelemetryExtractor:
         self.events = events or [
     # "Pre-Season Testing",
     # "Australian Grand Prix",
-    # 'Chinese Grand Prix',
+    'Chinese Grand Prix',
     # 'Japanese Grand Prix',
     # 'Bahrain Grand Prix',
     # 'Saudi Arabian Grand Prix',
@@ -545,22 +545,91 @@ def check_memory_usage(threshold_percent=80):
         return True
 
     return False
-    return False
+
+
+def is_data_available(year, events, sessions):
+    """
+    Check if data is available for the specified year, events, and sessions.
+
+    Args:
+        year: The F1 season year
+        events: List of event names to check
+        sessions: List of session names to check
+
+    Returns:
+        bool: True if data is available, False otherwise
+    """
+    try:
+        # Try to load the first event and session as a test
+        if not events or not sessions:
+            logger.warning("No events or sessions specified to check")
+            return False
+
+        event = events[0]
+        session = sessions[0]
+
+        logger.info(f"Checking data availability for {year} {event} {session}...")
+
+        # Try to get the session without loading telemetry
+        f1session = fastf1.get_session(year, event, session)
+        f1session.load(telemetry=False, weather=False, messages=False)
+
+        # Check if we have lap data
+        if f1session.laps.empty:
+            logger.info(f"No lap data available yet for {year} {event} {session}")
+            return False
+
+        # Check if we have at least one driver
+        if len(f1session.laps["Driver"].unique()) == 0:
+            logger.info(f"No driver data available yet for {year} {event} {session}")
+            return False
+
+        logger.info(f"Data is available for {year} {event} {session}")
+        return True
+
+    except Exception as e:
+        logger.info(f"Data not yet available: {str(e)}")
+        return False
 
 
 def main():
     """Main entry point for the script."""
     try:
-        # Import memory monitor
-
-        # Create extractor and process data
+        # Create extractor
         extractor = TelemetryExtractor()
 
         # Use more workers on GitHub Actions
         is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
         max_workers = 12 if is_github_actions else 8
 
-        extractor.process_all_data(max_workers=max_workers)
+        # Wait for data to be available
+        wait_time = 30  # seconds between checks
+        max_attempts = 720  # 12 hours max wait time (720 * 60 seconds)
+        attempt = 0
+
+        logger.info(f"Starting to wait for {extractor.year} season data...")
+
+        while attempt < max_attempts:
+            if is_data_available(extractor.year, extractor.events, extractor.sessions):
+                logger.info(
+                    f"Data is available for {extractor.year} season. Starting extraction..."
+                )
+                extractor.process_all_data(max_workers=max_workers)
+                break
+            else:
+                attempt += 1
+                logger.info(
+                    f"Data not yet available. Waiting {wait_time} seconds before retry ({attempt}/{max_attempts})..."
+                )
+                time.sleep(wait_time)
+
+                # Check memory usage and clear if needed
+                check_memory_usage()
+
+        if attempt >= max_attempts:
+            logger.error(
+                f"Exceeded maximum wait time ({max_attempts * wait_time / 3600} hours). Exiting."
+            )
 
     except Exception as e:
         logger.error(f"Error in main function: {str(e)}")
