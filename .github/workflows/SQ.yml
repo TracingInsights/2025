@@ -1,4 +1,4 @@
-name: R
+name: SQ
 
 on:
   workflow_dispatch:

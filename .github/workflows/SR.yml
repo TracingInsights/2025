@@ -1,4 +1,4 @@
-name: R
+name: SR
 
 on:
   workflow_dispatch:

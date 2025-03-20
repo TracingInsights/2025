@@ -1,4 +1,4 @@
-name: R
+name: FP1
 
 on:
   workflow_dispatch:
