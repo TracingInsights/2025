@@ -57,7 +57,7 @@ jobs:
           git config --global core.fsyncMethod batch
 
       - name: Run Telemetry Extraction
-        run: python telFP1.py
+        run: python telSQ.py
         env:
           GITHUB_ACTIONS: "true"
 
