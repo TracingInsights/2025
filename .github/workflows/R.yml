@@ -3,36 +3,78 @@ name: R
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 7 23 3 *'
+    - cron: '30 7 21 3 *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+  PYTHONUNBUFFERED: 1
 
 jobs:
-  scrape-latest:
+  extract-telemetry:
     runs-on: ubuntu-latest
 
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
       - name: Set up Python
-        uses: actions/setup-python@v2.0.0
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Install requirements
-        run: pip install -r requirements.txt
-      - name: Run Telemetry
-        run: python telR.py run-all
-      - name: Commit changes
+
+      - name: Install uv
         run: |
-          git config --local user.name github-actions
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install --system -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions"
           git config --local user.email "action@github.com"
-          git pull origin main
+          # Minimal Git configuration for performance
+          git config --global core.compression 0
+          git config --global core.preloadIndex true
+          git config --global core.fsyncMethod batch
+
+      - name: Run Telemetry Extraction
+        run: python telR.py
+        env:
+          GITHUB_ACTIONS: "true"
+
+      - name: Commit and push changes
+        run: |
+          # Fast pull strategy
+          git pull --no-rebase --no-edit origin main || true
+
+          # Add all changes
           git add .
+
+          # Only commit if there are changes
           if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update data" -a
-              git push -u origin main
+              git commit -m "Update F1 telemetry data [skip ci]" -a
+              git push origin main
+          else
+              echo "No changes to commit"
           fi
         env:
-          REPO_KEY: ${{secrets.GITHUB_TOKEN}}
-          username: github-actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

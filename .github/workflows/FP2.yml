@@ -1,9 +1,9 @@
-name: FP1
+name: FP2
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 15 7 12 *'
+    - cron: '30 7 21 3 *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,7 +57,7 @@ jobs:
           git config --global core.fsyncMethod batch
 
       - name: Run Telemetry Extraction
-        run: python telFP1.py
+        run: python telFP2.py
         env:
           GITHUB_ACTIONS: "true"
 
