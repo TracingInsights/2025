@@ -3,7 +3,7 @@ name: FP2
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 7 21 3 *'
+    - cron: '0 7 4 4 *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
