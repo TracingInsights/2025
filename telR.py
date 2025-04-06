@@ -48,9 +48,9 @@ class TelemetryExtractor:
         self.year = year
         self.events = events or [
     # "Pre-Season Testing",
-    # "Australian Grand Prix",
+    "Australian Grand Prix",
     # 'Chinese Grand Prix',
-    'Japanese Grand Prix',
+    # 'Japanese Grand Prix',
     # 'Bahrain Grand Prix',
     # 'Saudi Arabian Grand Prix',
     # 'Miami Grand Prix',
@@ -132,8 +132,7 @@ class TelemetryExtractor:
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
             driver_laps["LapTime"] = driver_laps["LapTime"].apply(
                 lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
-            )
-            driver_laps = driver_laps[driver_laps.LapTime.notnull()]
+            )        
 
             return {
                 "time": driver_laps["LapTime"].tolist(),
