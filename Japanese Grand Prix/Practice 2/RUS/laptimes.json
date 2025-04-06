@@ -1,1 +1,1 @@
-{"time": [89.666, 88.567, 92.751, 92.759, 92.607], "lap": [2.0, 7.0, 10.0, 11.0, 12.0], "compound": ["HARD", "SOFT", "HARD", "HARD", "HARD"]}
+{"time": ["None", 89.666, "None", "None", "None", "None", 88.567, "None", "None", 92.751, 92.759, 92.607], "lap": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0], "compound": ["HARD", "HARD", "HARD", "HARD", "HARD", "SOFT", "SOFT", "SOFT", "HARD", "HARD", "HARD", "HARD"]}
