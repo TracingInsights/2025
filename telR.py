@@ -140,7 +140,7 @@ class TelemetryExtractor:
                 elif pd.isna(lap_time):  # Check if it's NaN
                     lap_times.append(None)  # Use None instead of NaN
                 else:
-                    lap_times.append(lap_time)
+                    lap_times.append(None)
             
             # Handle NaN values in compounds
             compounds = []
