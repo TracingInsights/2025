@@ -120,6 +120,7 @@ class TelemetryExtractor:
             logger.error(f"Error getting drivers for {event} {session}: {str(e)}")
             return {"drivers": []}
 
+    
     def laps_data(
         self, event: Union[str, int], session: str, driver: str, f1session=None
     ) -> Dict[str, List]:
@@ -130,14 +131,29 @@ class TelemetryExtractor:
 
             laps = f1session.laps
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
-            driver_laps["LapTime"] = driver_laps["LapTime"].apply(
-                lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
-            )        
+            
+            # Convert lap times to seconds and handle NaN values
+            lap_times = []
+            for lap_time in driver_laps["LapTime"]:
+                if hasattr(lap_time, "total_seconds"):
+                    lap_times.append(lap_time.total_seconds())
+                elif pd.isna(lap_time):  # Check if it's NaN
+                    lap_times.append(None)  # Use None instead of NaN
+                else:
+                    lap_times.append(lap_time)
+            
+            # Handle NaN values in compounds
+            compounds = []
+            for compound in driver_laps["Compound"]:
+                if pd.isna(compound):
+                    compounds.append(None)  # Use None instead of NaN
+                else:
+                    compounds.append(compound)
 
             return {
-                "time": driver_laps["LapTime"].tolist(),
+                "time": lap_times,
                 "lap": driver_laps["LapNumber"].tolist(),
-                "compound": driver_laps["Compound"].tolist(),
+                "compound": compounds,
             }
         except Exception as e:
             logger.error(
