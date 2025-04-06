@@ -120,7 +120,7 @@ class TelemetryExtractor:
             logger.error(f"Error getting drivers for {event} {session}: {str(e)}")
             return {"drivers": []}
 
-    
+
     def laps_data(
         self, event: Union[str, int], session: str, driver: str, f1session=None
     ) -> Dict[str, List]:
@@ -131,7 +131,7 @@ class TelemetryExtractor:
 
             laps = f1session.laps
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
-            
+
             # Convert lap times to seconds and handle NaN values
             lap_times = []
             for lap_time in driver_laps["LapTime"]:
@@ -141,7 +141,7 @@ class TelemetryExtractor:
                     lap_times.append(None)  # Use None instead of NaN
                 else:
                     lap_times.append(None)
-            
+
             # Handle NaN values in compounds
             compounds = []
             for compound in driver_laps["Compound"]:
@@ -410,6 +410,10 @@ class TelemetryExtractor:
 
             # Save lap times
             laptimes = self.laps_data(event, session, driver, f1session)
+            # Replace NaN values with None before JSON serialization
+            laptimes["time"] = [None if pd.isna(x) else x for x in laptimes["time"]]
+            laptimes["lap"] = [None if pd.isna(x) else x for x in laptimes["lap"]]
+            laptimes["compound"] = [None if pd.isna(x) else x for x in laptimes["compound"]]
             with open(f"{driver_dir}/laptimes.json", "w") as json_file:
                 json.dump(laptimes, json_file)
 
