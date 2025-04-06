@@ -411,9 +411,9 @@ class TelemetryExtractor:
             # Save lap times
             laptimes = self.laps_data(event, session, driver, f1session)
             # Replace NaN values with None before JSON serialization
-            laptimes["time"] = [None if pd.isna(x) else x for x in laptimes["time"]]
-            laptimes["lap"] = [None if pd.isna(x) else x for x in laptimes["lap"]]
-            laptimes["compound"] = [None if pd.isna(x) else x for x in laptimes["compound"]]
+            laptimes["time"] = ["None" if pd.isna(x) else x for x in laptimes["time"]]
+            laptimes["lap"] = ["None" if pd.isna(x) else x for x in laptimes["lap"]]
+            laptimes["compound"] = ["None" if pd.isna(x) else x for x in laptimes["compound"]]
             with open(f"{driver_dir}/laptimes.json", "w") as json_file:
                 json.dump(laptimes, json_file)
 
