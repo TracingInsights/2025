@@ -49,9 +49,9 @@ class TelemetryExtractor:
         self.events = events or [
     # "Pre-Season Testing",
     # "Australian Grand Prix",
-    # 'Chinese Grand Prix',
+    'Chinese Grand Prix',
     # 'Japanese Grand Prix',
-    'Bahrain Grand Prix',
+    # 'Bahrain Grand Prix',
     # 'Saudi Arabian Grand Prix',
     # 'Miami Grand Prix',
     # "Emilia Romagna Grand Prix",
