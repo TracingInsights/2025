@@ -73,7 +73,7 @@ class TelemetryExtractor:
     # 'Qatar Grand Prix',
     # 'Abu Dhabi Grand Prix',
 ]
-        self.sessions = sessions or ["Sprint"]
+        self.sessions = sessions or ["Sprint",]
 
     def get_session(
         self, event: Union[str, int], session: str, load_telemetry: bool = False
@@ -337,19 +337,24 @@ class TelemetryExtractor:
 
             # Try to get corner data from fastf1 first
             try:
-                circuit_info = f1session.get_circuit_info().corners
+                circuit_info = f1session.get_circuit_info()
+                corners = circuit_info.corners
+                # Get the rotation from the circuit info
+                rotation = circuit_info.rotation
+
                 corner_info = {
-                    "CornerNumber": circuit_info["Number"].tolist(),
-                    "X": circuit_info["X"].tolist(),
-                    "Y": circuit_info["Y"].tolist(),
-                    "Angle": circuit_info["Angle"].tolist(),
-                    "Distance": circuit_info["Distance"].tolist(),
+                    "CornerNumber": corners["Number"].tolist(),
+                    "X": corners["X"].tolist(),
+                    "Y": corners["Y"].tolist(),
+                    "Angle": corners["Angle"].tolist(),
+                    "Distance": corners["Distance"].tolist(),
+                    "Rotation": rotation  # Add rotation information
                 }
                 CIRCUIT_INFO_CACHE[cache_key] = corner_info
                 return corner_info
             except (AttributeError, KeyError):
                 # Fall back to API method if fastf1 method fails
-                circuit_info = self._get_circuit_info_from_api(circuit_key)
+                circuit_info, rotation = self._get_circuit_info_from_api(circuit_key)
                 if circuit_info is not None:
                     corner_info = {
                         "CornerNumber": circuit_info["Number"].tolist(),
@@ -357,6 +362,7 @@ class TelemetryExtractor:
                         "Y": circuit_info["Y"].tolist(),
                         "Angle": circuit_info["Angle"].tolist(),
                         "Distance": (circuit_info["Distance"] / 10).tolist(),
+                        "Rotation": rotation  # Add rotation information from API
                     }
                     CIRCUIT_INFO_CACHE[cache_key] = corner_info
                     return corner_info
@@ -367,16 +373,19 @@ class TelemetryExtractor:
             logger.error(f"Error getting circuit info for {event} {session}: {str(e)}")
             return None
 
-    def _get_circuit_info_from_api(self, circuit_key: int) -> Optional[pd.DataFrame]:
+    def _get_circuit_info_from_api(self, circuit_key: int) -> Tuple[Optional[pd.DataFrame], float]:
         """Get circuit information from the MultiViewer API."""
         url = f"{PROTO}://{HOST}/api/v1/circuits/{circuit_key}/{self.year}"
         try:
             response = requests.get(url, headers=HEADERS)
             if response.status_code != 200:
                 logger.debug(f"[{response.status_code}] {response.content.decode()}")
-                return None
+                return None, 0.0
 
             data = response.json()
+            # Extract rotation from the API response
+            rotation = float(data.get("rotation", 0.0))
+
             rows = []
             for entry in data["corners"]:
                 rows.append(
@@ -392,10 +401,10 @@ class TelemetryExtractor:
 
             return pd.DataFrame(
                 rows, columns=["X", "Y", "Number", "Letter", "Angle", "Distance"]
-            )
+            ), rotation
         except Exception as e:
             logger.error(f"Error fetching circuit data from API: {str(e)}")
-            return None
+            return None, 0.0
 
     def process_driver(
         self, event: str, session: str, driver: str, base_dir: str, f1session=None
