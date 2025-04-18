@@ -3,7 +3,7 @@ name: Q
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 17 12 4 *'
+    - cron: '0 18 19 4 *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
