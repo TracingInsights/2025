@@ -82,7 +82,7 @@ class TelemetryExtractor:
         cache_key = f"{self.year}-{event}-{session}"
         if cache_key not in SESSION_CACHE:
             f1session = fastf1.get_session(self.year, event, session)
-            f1session.load(telemetry=load_telemetry, weather=False, messages=False)
+            f1session.load(telemetry=load_telemetry, weather=True, messages=True)
             SESSION_CACHE[cache_key] = f1session
         return SESSION_CACHE[cache_key]
 
