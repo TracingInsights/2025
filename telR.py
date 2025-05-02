@@ -47,32 +47,32 @@ class TelemetryExtractor:
         """Initialize the TelemetryExtractor."""
         self.year = year
         self.events = events or [
-    # "Pre-Season Testing",
-    # "Australian Grand Prix",
-    # 'Chinese Grand Prix',
-    # 'Japanese Grand Prix',
-    # 'Bahrain Grand Prix',
-    'Saudi Arabian Grand Prix',
-    # 'Miami Grand Prix',
-    # "Emilia Romagna Grand Prix",
-    # 'Monaco Grand Prix',
-    # 'Spanish Grand Prix',
-    # 'Canadian Grand Prix',
-    # 'Austrian Grand Prix',
-    # 'British Grand Prix',
-    # 'Belgian Grand Prix',
-    # 'Hungarian Grand Prix',
-    # 'Dutch Grand Prix',
-    # 'Italian Grand Prix',
-    # 'Azerbaijan Grand Prix',
-    # 'Singapore Grand Prix',
-    # 'United States Grand Prix',
-    # 'Mexico City Grand Prix',
-    # 'São Paulo Grand Prix',
-    # 'Las Vegas Grand Prix',
-    # 'Qatar Grand Prix',
-    # 'Abu Dhabi Grand Prix',
-]
+            # "Pre-Season Testing",
+            # "Australian Grand Prix",
+            # 'Chinese Grand Prix',
+            # 'Japanese Grand Prix',
+            # 'Bahrain Grand Prix',
+            # 'Saudi Arabian Grand Prix',
+            "Miami Grand Prix",
+            # "Emilia Romagna Grand Prix",
+            # 'Monaco Grand Prix',
+            # 'Spanish Grand Prix',
+            # 'Canadian Grand Prix',
+            # 'Austrian Grand Prix',
+            # 'British Grand Prix',
+            # 'Belgian Grand Prix',
+            # 'Hungarian Grand Prix',
+            # 'Dutch Grand Prix',
+            # 'Italian Grand Prix',
+            # 'Azerbaijan Grand Prix',
+            # 'Singapore Grand Prix',
+            # 'United States Grand Prix',
+            # 'Mexico City Grand Prix',
+            # 'São Paulo Grand Prix',
+            # 'Las Vegas Grand Prix',
+            # 'Qatar Grand Prix',
+            # 'Abu Dhabi Grand Prix',
+        ]
         self.sessions = sessions or ["Race"]
 
     def get_session(
@@ -119,7 +119,6 @@ class TelemetryExtractor:
         except Exception as e:
             logger.error(f"Error getting drivers for {event} {session}: {str(e)}")
             return {"drivers": []}
-
 
     def laps_data(
         self, event: Union[str, int], session: str, driver: str, f1session=None
@@ -348,7 +347,7 @@ class TelemetryExtractor:
                     "Y": corners["Y"].tolist(),
                     "Angle": corners["Angle"].tolist(),
                     "Distance": corners["Distance"].tolist(),
-                    "Rotation": rotation  # Add rotation information
+                    "Rotation": rotation,  # Add rotation information
                 }
                 CIRCUIT_INFO_CACHE[cache_key] = corner_info
                 return corner_info
@@ -362,7 +361,7 @@ class TelemetryExtractor:
                         "Y": circuit_info["Y"].tolist(),
                         "Angle": circuit_info["Angle"].tolist(),
                         "Distance": (circuit_info["Distance"] / 10).tolist(),
-                        "Rotation": rotation  # Add rotation information from API
+                        "Rotation": rotation,  # Add rotation information from API
                     }
                     CIRCUIT_INFO_CACHE[cache_key] = corner_info
                     return corner_info
@@ -373,7 +372,9 @@ class TelemetryExtractor:
             logger.error(f"Error getting circuit info for {event} {session}: {str(e)}")
             return None
 
-    def _get_circuit_info_from_api(self, circuit_key: int) -> Tuple[Optional[pd.DataFrame], float]:
+    def _get_circuit_info_from_api(
+        self, circuit_key: int
+    ) -> Tuple[Optional[pd.DataFrame], float]:
         """Get circuit information from the MultiViewer API."""
         url = f"{PROTO}://{HOST}/api/v1/circuits/{circuit_key}/{self.year}"
         try:
@@ -399,9 +400,12 @@ class TelemetryExtractor:
                     )
                 )
 
-            return pd.DataFrame(
-                rows, columns=["X", "Y", "Number", "Letter", "Angle", "Distance"]
-            ), rotation
+            return (
+                pd.DataFrame(
+                    rows, columns=["X", "Y", "Number", "Letter", "Angle", "Distance"]
+                ),
+                rotation,
+            )
         except Exception as e:
             logger.error(f"Error fetching circuit data from API: {str(e)}")
             return None, 0.0
@@ -422,7 +426,9 @@ class TelemetryExtractor:
             # Replace NaN values with None before JSON serialization
             laptimes["time"] = ["None" if pd.isna(x) else x for x in laptimes["time"]]
             laptimes["lap"] = ["None" if pd.isna(x) else x for x in laptimes["lap"]]
-            laptimes["compound"] = ["None" if pd.isna(x) else x for x in laptimes["compound"]]
+            laptimes["compound"] = [
+                "None" if pd.isna(x) else x for x in laptimes["compound"]
+            ]
             with open(f"{driver_dir}/laptimes.json", "w") as json_file:
                 json.dump(laptimes, json_file)
 
