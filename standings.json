@@ -1,0 +1,224 @@
+{
+  "last_updated": "After Azerbaijan Grand Prix",
+  "season": "2023",
+  "drivers": [
+    {
+      "position": 1,
+      "driver": "Max Verstappen",
+      "number": 1,
+      "team": "Red Bull Racing",
+      "wins": 14,
+      "podiums": 19,
+      "points": 397,
+      "last_race_points": 25,
+      "position_change": 0,
+      "driver_nation": "Netherlands",
+      "team_nation": "Austria",
+      "tire": "Pirelli",
+      "car": "RB19",
+      "engine": "Honda RBPT",
+      "lubricant": "Mobil 1",
+      "is_rookie": false,
+      "driver_image": "https://www.formula1.com/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png.transform/2col/image.png",
+      "team_image": "https://www.formula1.com/content/dam/fom-website/teams/2023/red-bull-racing-logo.png.transform/2col/image.png",
+      "driver_wiki": "https://en.wikipedia.org/wiki/Max_Verstappen",
+      "team_wiki": "https://en.wikipedia.org/wiki/Red_Bull_Racing",
+      "driver_f1_profile": "https://www.formula1.com/en/drivers/max-verstappen.html"
+    },
+    {
+      "position": 2,
+      "driver": "Sergio Perez",
+      "number": 11,
+      "team": "Red Bull Racing",
+      "wins": 2,
+      "podiums": 8,
+      "points": 223,
+      "last_race_points": 12,
+      "position_change": -1,
+      "driver_nation": "Mexico",
+      "team_nation": "Austria",
+      "tire": "Pirelli",
+      "car": "RB19",
+      "engine": "Honda RBPT",
+      "lubricant": "Mobil 1",
+      "is_rookie": false,
+      "driver_image": "https://www.formula1.com/content/dam/fom-website/drivers/S/SERPER01_Sergio_Perez/serper01.png.transform/2col/image.png",
+      "team_image": "https://www.formula1.com/content/dam/fom-website/teams/2023/red-bull-racing-logo.png.transform/2col/image.png",
+      "driver_wiki": "https://en.wikipedia.org/wiki/Sergio_P%C3%A9rez",
+      "team_wiki": "https://en.wikipedia.org/wiki/Red_Bull_Racing",
+      "driver_f1_profile": "https://www.formula1.com/en/drivers/sergio-perez.html"
+    },
+    {
+      "position": 3,
+      "driver": "Lewis Hamilton",
+      "number": 44,
+      "team": "Mercedes",
+      "wins": 1,
+      "podiums": 6,
+      "points": 190,
+      "last_race_points": 18,
+      "position_change": 2,
+      "driver_nation": "United Kingdom",
+      "team_nation": "Germany",
+      "tire": "Pirelli",
+      "car": "W14",
+      "engine": "Mercedes",
+      "lubricant": "Petronas",
+      "is_rookie": false,
+      "driver_image": "https://www.formula1.com/content/dam/fom-website/drivers/L/LEWHAM01_Lewis_Hamilton/lewham01.png.transform/2col/image.png",
+      "team_image": "https://www.formula1.com/content/dam/fom-website/teams/2023/mercedes-logo.png.transform/2col/image.png",
+      "driver_wiki": "https://en.wikipedia.org/wiki/Lewis_Hamilton",
+      "team_wiki": "https://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One",
+      "driver_f1_profile": "https://www.formula1.com/en/drivers/lewis-hamilton.html"
+    },
+    {
+      "position": 10,
+      "driver": "Oscar Piastri",
+      "number": 81,
+      "team": "McLaren",
+      "wins": 0,
+      "podiums": 1,
+      "points": 42,
+      "last_race_points": 8,
+      "position_change": 1,
+      "driver_nation": "Australia",
+      "team_nation": "United Kingdom",
+      "tire": "Pirelli",
+      "car": "MCL60",
+      "engine": "Mercedes",
+      "lubricant": "Castrol",
+      "is_rookie": true,
+      "driver_image": "https://www.formula1.com/content/dam/fom-website/drivers/O/OSCPIA01_Oscar_Piastri/oscpia01.png.transform/2col/image.png",
+      "team_image": "https://www.formula1.com/content/dam/fom-website/teams/2023/mclaren-logo.png.transform/2col/image.png",
+      "driver_wiki": "https://en.wikipedia.org/wiki/Oscar_Piastri",
+      "team_wiki": "https://en.wikipedia.org/wiki/McLaren",
+      "driver_f1_profile": "https://www.formula1.com/en/drivers/oscar-piastri.html"
+    }
+  ],
+  "teams": [
+    {
+      "position": 1,
+      "team": "Red Bull Racing",
+      "wins": 16,
+      "podiums": 27,
+      "points": 620,
+      "last_race_points": 37,
+      "position_change": 0,
+      "team_nation": "Austria",
+      "drivers": [
+        {
+          "name": "Max Verstappen",
+          "number": 1,
+          "image": "https://via.placeholder.com/32"
+        },
+        {
+          "name": "Sergio Perez",
+          "number": 11,
+          "image": "https://via.placeholder.com/32"
+        }
+      ],
+      "tire": "Pirelli",
+      "car": "RB19",
+      "engine": "Honda RBPT",
+      "lubricant": "Mobil 1",
+      "team_image": "https://via.placeholder.com/40"
+    },
+    {
+      "position": 2,
+      "team": "Mercedes",
+      "wins": 1,
+      "podiums": 8,
+      "points": 305,
+      "last_race_points": 25,
+      "position_change": 1,
+      "team_nation": "Germany",
+      "drivers": [
+        {
+          "name": "Lewis Hamilton",
+          "number": 44,
+          "image": "https://via.placeholder.com/32"
+        },
+        {
+          "name": "George Russell",
+          "number": 63,
+          "image": "https://via.placeholder.com/32"
+        }
+      ],
+      "tire": "Pirelli",
+      "car": "W14",
+      "engine": "Mercedes",
+      "lubricant": "Petronas",
+      "team_image": "https://via.placeholder.com/40"
+    },
+    {
+      "position": 3,
+      "team": "Ferrari",
+      "wins": 1,
+      "podiums": 7,
+      "points": 285,
+      "last_race_points": 22,
+      "position_change": -1,
+      "team_nation": "Italy",
+      "drivers": [
+        {
+          "name": "Charles Leclerc",
+          "number": 16,
+          "image": "https://via.placeholder.com/32"
+        },
+        {
+          "name": "Carlos Sainz",
+          "number": 55,
+          "image": "https://via.placeholder.com/32"
+        }
+      ],
+      "tire": "Pirelli",
+      "car": "SF-23",
+      "engine": "Ferrari",
+      "lubricant": "Shell",
+      "team_image": "https://via.placeholder.com/40"
+    },
+    {
+      "position": 4,
+      "team": "McLaren",
+      "wins": 0,
+      "podiums": 4,
+      "points": 215,
+      "last_race_points": 18,
+      "position_change": 0,
+      "team_nation": "United Kingdom",
+      "drivers": [
+        {
+          "name": "Lando Norris",
+          "number": 4,
+          "image": "https://via.placeholder.com/32"
+        },
+        {
+          "name": "Oscar Piastri",
+          "number": 81,
+          "image": "https://via.placeholder.com/32"
+        }
+      ],
+      "tire": "Pirelli",
+      "car": "MCL60",
+      "engine": "Mercedes",
+      "lubricant": "Castrol",
+      "team_image": "https://via.placeholder.com/40"
+    }
+  ],
+  "points_system": {
+    "positions": {
+      "1": 25,
+      "2": 18,
+      "3": 15,
+      "4": 12,
+      "5": 10,
+      "6": 8,
+      "7": 6,
+      "8": 4,
+      "9": 2,
+      "10": 1
+    },
+    "fastest_lap": 1,
+    "fastest_lap_requirement": "Must finish in top 10"
+  }
+}
