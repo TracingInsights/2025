@@ -3,7 +3,7 @@ name: FP1
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 17 2 5 *'
+    - cron: '30 12 16 5 *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,8 +15,6 @@ env:
 jobs:
   extract-telemetry:
     runs-on: ubuntu-latest
-
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
