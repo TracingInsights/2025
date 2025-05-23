@@ -1,0 +1,81 @@
+name: Sparse FP1
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 12 23 5 *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  extract-telemetry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (Sparse)
+        uses: actions/checkout@v4 # Updated
+        with:
+          fetch-depth: 1
+          
+          sparse-checkout: |
+            telFP1.py
+            requirements.txt
+            
+          
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH # Corrected path based on uv log
+
+      - name: Cache uv internal cache
+        uses: actions/cache@v4 # Updated
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install --system -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions"
+          git config --local user.email "action@github.com"
+          git config --global core.compression 0
+          git config --global core.preloadIndex true
+          git config --global core.fsyncMethod batch
+
+      - name: Run Telemetry Extraction
+        run: python telFP1.py
+        env:
+          GITHUB_ACTIONS: "true"
+
+      - name: Commit and push changes
+        run: |
+          git pull --no-rebase --no-edit origin main || true
+          
+          
+          git add . 
+
+          if [[ "$(git status --porcelain)" != "" ]]; then
+              git commit -m "Update F1 telemetry data [skip ci]" -a
+              git push origin main
+          else
+              echo "No changes to commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
