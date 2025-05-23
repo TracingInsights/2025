@@ -24,7 +24,7 @@ jobs:
           sparse-checkout: |
             telFP1.py
             requirements.txt
-            
+            cache/1.txt
           
 
       - name: Set up Python
