@@ -5,9 +5,7 @@ on:
   schedule:
     - cron: '30 12 23 5 *'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+
 
 env:
   PYTHONUNBUFFERED: 1

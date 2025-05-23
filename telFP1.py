@@ -25,7 +25,7 @@ logging.getLogger("fastf1").propagate = False
 # Enable caching
 fastf1.Cache.enable_cache("cache")
 
-DEFAULT_YEAR = 2025
+DEFAULT_YEAR = 2024
 PROTO = "https"
 HOST = "api.multiviewer.app"
 HEADERS = {"User-Agent": f"FastF1/"}
@@ -55,7 +55,7 @@ class TelemetryExtractor:
             # 'Saudi Arabian Grand Prix',
             # "Miami Grand Prix",
             # "Emilia Romagna Grand Prix",
-            'Monaco Grand Prix',
+            # 'Monaco Grand Prix',
             # 'Spanish Grand Prix',
             # 'Canadian Grand Prix',
             # 'Austrian Grand Prix',
@@ -71,7 +71,7 @@ class TelemetryExtractor:
             # 'São Paulo Grand Prix',
             # 'Las Vegas Grand Prix',
             # 'Qatar Grand Prix',
-            # 'Abu Dhabi Grand Prix',
+            'Abu Dhabi Grand Prix',
         ]
         self.sessions = sessions or ["Practice 1"]
 
