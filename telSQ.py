@@ -133,15 +133,22 @@ class TelemetryExtractor:
             laps = f1session.laps
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
 
-            # Convert lap times to seconds and handle NaN values
-            lap_times = []
-            for lap_time in driver_laps["LapTime"]:
-                if hasattr(lap_time, "total_seconds"):
-                    lap_times.append(lap_time.total_seconds())
-                elif pd.isna(lap_time):  # Check if it's NaN
-                    lap_times.append(None)  # Use None instead of NaN
+            # Helper function to convert timedelta to seconds
+            def timedelta_to_seconds(time_value):
+                if hasattr(time_value, "total_seconds"):
+                    return round(time_value.total_seconds(), 3)
+                elif pd.isna(time_value):
+                    return None
                 else:
-                    lap_times.append(None)
+                    return None
+
+            # Convert lap times to seconds and handle NaN values
+            lap_times = [timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]]
+
+            # Convert sector times to seconds
+            sector1_times = [timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]]
+            sector2_times = [timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]]
+            sector3_times = [timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]]
 
             # Handle NaN values in compounds
             compounds = []
@@ -151,16 +158,68 @@ class TelemetryExtractor:
                 else:
                     compounds.append(compound)
 
+            # Handle stint information
+            stints = []
+            for stint in driver_laps["Stint"]:
+                if pd.isna(stint):
+                    stints.append(None)  # Use None instead of NaN
+                else:
+                    stints.append(int(stint))  # Convert to int for consistency
+
+            # Handle TyreLife
+            tyre_life = []
+            for life in driver_laps["TyreLife"]:
+                if pd.isna(life):
+                    tyre_life.append(None)
+                else:
+                    tyre_life.append(int(life))
+
+            # Handle Position
+            positions = []
+            for pos in driver_laps["Position"]:
+                if pd.isna(pos):
+                    positions.append(None)
+                else:
+                    positions.append(int(pos))
+
+            # Handle TrackStatus
+            track_status = []
+            for status in driver_laps["TrackStatus"]:
+                if pd.isna(status):
+                    track_status.append(None)
+                else:
+                    track_status.append(str(status))
+
+            # Handle IsPersonalBest
+            is_personal_best = []
+            for is_pb in driver_laps["IsPersonalBest"]:
+                if pd.isna(is_pb):
+                    is_personal_best.append(None)
+                else:
+                    is_personal_best.append(bool(is_pb))
+
             return {
                 "time": lap_times,
                 "lap": driver_laps["LapNumber"].tolist(),
                 "compound": compounds,
+                "stint": stints,
+                "s1": sector1_times,
+                "s2": sector2_times,
+                "s3": sector3_times,
+                "life": tyre_life,
+                "pos": positions,
+                "status": track_status,
+                "pb": is_personal_best,
             }
         except Exception as e:
             logger.error(
                 f"Error getting lap data for {driver} in {event} {session}: {str(e)}"
             )
-            return {"time": [], "lap": [], "compound": []}
+            return {
+                "time": [], "lap": [], "compound": [], "stint": [],
+                "s1": [], "s2": [], "s3": [],
+                "life": [], "pos": [], "status": [], "pb": []
+            }
 
     def accCalc(
         self, telemetry: pd.DataFrame, Nax: int, Nay: int, Naz: int
