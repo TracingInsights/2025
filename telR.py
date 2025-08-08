@@ -132,13 +132,13 @@ class TelemetryExtractor:
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
 
             # Helper function to convert timedelta to seconds
+            
+
             def timedelta_to_seconds(time_value):
-                if hasattr(time_value, "total_seconds"):
-                    return round(time_value.total_seconds(), 3)
-                elif pd.isna(time_value):
-                    return None
-                else:
-                    return None
+                if pd.isna(time_value) or not hasattr(time_value, 'total_seconds'):
+                    return "None"
+                return round(time_value.total_seconds(), 3)
+
 
             # Convert lap times to seconds and handle NaN values
             lap_times = [timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]]
@@ -152,7 +152,7 @@ class TelemetryExtractor:
             compounds = []
             for compound in driver_laps["Compound"]:
                 if pd.isna(compound):
-                    compounds.append(None)  # Use None instead of NaN
+                    compounds.append("None")  # Use None instead of NaN
                 else:
                     compounds.append(compound)
 
@@ -160,7 +160,7 @@ class TelemetryExtractor:
             stints = []
             for stint in driver_laps["Stint"]:
                 if pd.isna(stint):
-                    stints.append(None)  # Use None instead of NaN
+                    stints.append("None")  # Use None instead of NaN
                 else:
                     stints.append(int(stint))  # Convert to int for consistency
 
@@ -168,7 +168,7 @@ class TelemetryExtractor:
             tyre_life = []
             for life in driver_laps["TyreLife"]:
                 if pd.isna(life):
-                    tyre_life.append(None)
+                    tyre_life.append("None")
                 else:
                     tyre_life.append(int(life))
 
@@ -176,7 +176,7 @@ class TelemetryExtractor:
             positions = []
             for pos in driver_laps["Position"]:
                 if pd.isna(pos):
-                    positions.append(None)
+                    positions.append("None")
                 else:
                     positions.append(int(pos))
 
@@ -184,7 +184,7 @@ class TelemetryExtractor:
             track_status = []
             for status in driver_laps["TrackStatus"]:
                 if pd.isna(status):
-                    track_status.append(None)
+                    track_status.append("None")
                 else:
                     track_status.append(str(status))
 
@@ -192,7 +192,7 @@ class TelemetryExtractor:
             is_personal_best = []
             for is_pb in driver_laps["IsPersonalBest"]:
                 if pd.isna(is_pb):
-                    is_personal_best.append(None)
+                    is_personal_best.append("None")
                 else:
                     is_personal_best.append(bool(is_pb))
 
