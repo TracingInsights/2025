@@ -3,7 +3,7 @@ name: Q
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 15 2 8 *'
+    - cron: '0 14 30 8 *'
 
 
 
