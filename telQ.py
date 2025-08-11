@@ -49,8 +49,8 @@ class TelemetryExtractor:
         self.events = events or [
             # "Pre-Season Testing",
             # "Australian Grand Prix",
-            # 'Chinese Grand Prix',
-            # # "Japanese Grand Prix",
+            # "Chinese Grand Prix",
+            # "Japanese Grand Prix",
             # "Bahrain Grand Prix",
             # "Saudi Arabian Grand Prix",
             # "Miami Grand Prix",
@@ -60,7 +60,7 @@ class TelemetryExtractor:
             # "Canadian Grand Prix",
             # "Austrian Grand Prix",
             # "British Grand Prix",
-            # 'Belgian Grand Prix',
+            # "Belgian Grand Prix",
             # "Hungarian Grand Prix",
             "Dutch Grand Prix",
             # 'Italian Grand Prix',
@@ -257,7 +257,7 @@ class TelemetryExtractor:
                 "pos": positions,
                 "status": track_status,
                 "pb": is_personal_best,
-                "quali_session": quali_sessions,  # New field for qualifying session
+                "qs": quali_sessions,  # New field for qualifying session
             }
         except Exception as e:
             logger.error(
@@ -275,7 +275,7 @@ class TelemetryExtractor:
                 "pos": [],
                 "status": [],
                 "pb": [],
-                "quali_session": [],  # Include in error fallback too
+                "qs": [],  # Include in error fallback too
             }
 
     def accCalc(
