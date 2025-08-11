@@ -61,7 +61,7 @@ class TelemetryExtractor:
             # 'Austrian Grand Prix',
             # 'British Grand Prix',
             # 'Belgian Grand Prix',
-            'Hungarian Grand Prix',
+            "Hungarian Grand Prix",
             # 'Dutch Grand Prix',
             # 'Italian Grand Prix',
             # 'Azerbaijan Grand Prix',
@@ -132,21 +132,70 @@ class TelemetryExtractor:
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
 
             # Helper function to convert timedelta to seconds
-            
-
             def timedelta_to_seconds(time_value):
-                if pd.isna(time_value) or not hasattr(time_value, 'total_seconds'):
+                if pd.isna(time_value) or not hasattr(time_value, "total_seconds"):
                     return "None"
                 return round(time_value.total_seconds(), 3)
 
+            # Handle qualifying sessions if this is a qualifying session
+            quali_sessions = []
+            if session.lower() == "qualifying":
+                try:
+                    # Split qualifying sessions
+                    q1_laps, q2_laps, q3_laps = (
+                        f1session.laps.split_qualifying_sessions()
+                    )
+
+                    # Create a mapping of lap numbers to qualifying sessions
+                    lap_to_quali_session = {}
+
+                    # Map Q1 laps
+                    if not q1_laps.empty:
+                        q1_driver_laps = q1_laps.pick_drivers(driver)
+                        for lap_num in q1_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q1"
+
+                    # Map Q2 laps
+                    if not q2_laps.empty:
+                        q2_driver_laps = q2_laps.pick_drivers(driver)
+                        for lap_num in q2_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q2"
+
+                    # Map Q3 laps
+                    if not q3_laps.empty:
+                        q3_driver_laps = q3_laps.pick_drivers(driver)
+                        for lap_num in q3_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q3"
+
+                    # Assign qualifying session to each lap
+                    for lap_num in driver_laps["LapNumber"]:
+                        quali_sessions.append(lap_to_quali_session.get(lap_num, "None"))
+
+                except Exception as e:
+                    logger.warning(
+                        f"Could not split qualifying sessions for {driver}: {str(e)}"
+                    )
+                    # Fallback: assign "None" to all laps
+                    quali_sessions = ["None"] * len(driver_laps)
+            else:
+                # For non-qualifying sessions, all entries are "None"
+                quali_sessions = ["None"] * len(driver_laps)
 
             # Convert lap times to seconds and handle NaN values
-            lap_times = [timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]]
+            lap_times = [
+                timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]
+            ]
 
             # Convert sector times to seconds
-            sector1_times = [timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]]
-            sector2_times = [timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]]
-            sector3_times = [timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]]
+            sector1_times = [
+                timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]
+            ]
+            sector2_times = [
+                timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]
+            ]
+            sector3_times = [
+                timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]
+            ]
 
             # Handle NaN values in compounds
             compounds = []
@@ -208,15 +257,25 @@ class TelemetryExtractor:
                 "pos": positions,
                 "status": track_status,
                 "pb": is_personal_best,
+                "quali_session": quali_sessions,  # New field for qualifying session
             }
         except Exception as e:
             logger.error(
                 f"Error getting lap data for {driver} in {event} {session}: {str(e)}"
             )
             return {
-                "time": [], "lap": [], "compound": [], "stint": [],
-                "s1": [], "s2": [], "s3": [],
-                "life": [], "pos": [], "status": [], "pb": []
+                "time": [],
+                "lap": [],
+                "compound": [],
+                "stint": [],
+                "s1": [],
+                "s2": [],
+                "s3": [],
+                "life": [],
+                "pos": [],
+                "status": [],
+                "pb": [],
+                "quali_session": [],  # Include in error fallback too
             }
 
     def accCalc(
