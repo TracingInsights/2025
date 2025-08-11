@@ -48,15 +48,15 @@ class TelemetryExtractor:
         self.year = year
         self.events = events or [
             # "Pre-Season Testing",
-            "Australian Grand Prix",
+            # "Australian Grand Prix",
             # 'Chinese Grand Prix',
-            # 'Japanese Grand Prix',
-            # 'Bahrain Grand Prix',
+            # "Japanese Grand Prix",
+            # "Bahrain Grand Prix",
             # 'Saudi Arabian Grand Prix',
             # "Miami Grand Prix",
             # "Emilia Romagna Grand Prix",
-            # 'Monaco Grand Prix',
-            # 'Spanish Grand Prix',
+            # "Monaco Grand Prix",
+            'Spanish Grand Prix',
             # 'Canadian Grand Prix',
             # 'Austrian Grand Prix',
             # 'British Grand Prix',
@@ -132,21 +132,27 @@ class TelemetryExtractor:
             driver_laps = laps.pick_drivers(driver).copy()  # Create a copy here
 
             # Helper function to convert timedelta to seconds
-            
 
             def timedelta_to_seconds(time_value):
-                if pd.isna(time_value) or not hasattr(time_value, 'total_seconds'):
+                if pd.isna(time_value) or not hasattr(time_value, "total_seconds"):
                     return "None"
                 return round(time_value.total_seconds(), 3)
 
-
             # Convert lap times to seconds and handle NaN values
-            lap_times = [timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]]
+            lap_times = [
+                timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]
+            ]
 
             # Convert sector times to seconds
-            sector1_times = [timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]]
-            sector2_times = [timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]]
-            sector3_times = [timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]]
+            sector1_times = [
+                timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]
+            ]
+            sector2_times = [
+                timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]
+            ]
+            sector3_times = [
+                timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]
+            ]
 
             # Handle NaN values in compounds
             compounds = []
@@ -214,9 +220,17 @@ class TelemetryExtractor:
                 f"Error getting lap data for {driver} in {event} {session}: {str(e)}"
             )
             return {
-                "time": [], "lap": [], "compound": [], "stint": [],
-                "s1": [], "s2": [], "s3": [],
-                "life": [], "pos": [], "status": [], "pb": []
+                "time": [],
+                "lap": [],
+                "compound": [],
+                "stint": [],
+                "s1": [],
+                "s2": [],
+                "s3": [],
+                "life": [],
+                "pos": [],
+                "status": [],
+                "pb": [],
             }
 
     def accCalc(
