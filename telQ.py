@@ -73,8 +73,8 @@ class TelemetryExtractor:
             # "British Grand Prix",
             # "Belgian Grand Prix",
             # "Hungarian Grand Prix",
-            # "Dutch Grand Prix",
-            'Italian Grand Prix',
+            "Dutch Grand Prix",
+            # 'Italian Grand Prix',
             # 'Azerbaijan Grand Prix',
             # 'Singapore Grand Prix',
             # 'United States Grand Prix',
@@ -147,6 +147,50 @@ class TelemetryExtractor:
                 if pd.isna(time_value) or not hasattr(time_value, "total_seconds"):
                     return "None"
                 return round(time_value.total_seconds(), 3)
+            
+            # Handle qualifying sessions if this is a qualifying session
+            quali_sessions = []
+            if session.lower() == "qualifying":
+                try:
+                    # Split qualifying sessions
+                    q1_laps, q2_laps, q3_laps = (
+                        f1session.laps.split_qualifying_sessions()
+                    )
+
+                    # Create a mapping of lap numbers to qualifying sessions
+                    lap_to_quali_session = {}
+
+                    # Map Q1 laps
+                    if not q1_laps.empty:
+                        q1_driver_laps = q1_laps.pick_drivers(driver)
+                        for lap_num in q1_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q1"
+
+                    # Map Q2 laps
+                    if not q2_laps.empty:
+                        q2_driver_laps = q2_laps.pick_drivers(driver)
+                        for lap_num in q2_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q2"
+
+                    # Map Q3 laps
+                    if not q3_laps.empty:
+                        q3_driver_laps = q3_laps.pick_drivers(driver)
+                        for lap_num in q3_driver_laps["LapNumber"]:
+                            lap_to_quali_session[lap_num] = "Q3"
+
+                    # Assign qualifying session to each lap
+                    for lap_num in driver_laps["LapNumber"]:
+                        quali_sessions.append(lap_to_quali_session.get(lap_num, "None"))
+
+                except Exception as e:
+                    logger.warning(
+                        f"Could not split qualifying sessions for {driver}: {str(e)}"
+                    )
+                    # Fallback: assign "None" to all laps
+                    quali_sessions = ["None"] * len(driver_laps)
+            else:
+                # For non-qualifying sessions, all entries are "None"
+                quali_sessions = ["None"] * len(driver_laps)
 
             # Convert lap times to seconds and handle NaN values
             lap_times = [
@@ -224,6 +268,7 @@ class TelemetryExtractor:
                 "pos": positions,
                 "status": track_status,
                 "pb": is_personal_best,
+                "qs": quali_sessions, 
             }
         except Exception as e:
             logger.error(
@@ -241,6 +286,7 @@ class TelemetryExtractor:
                 "pos": [],
                 "status": [],
                 "pb": [],
+                "qs": [],
             }
 
     @staticmethod
