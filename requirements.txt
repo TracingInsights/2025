@@ -1,3 +1,4 @@
 fastf1
 orjson
 psutil
+joblib
