@@ -73,7 +73,7 @@ class TelemetryExtractor:
             # "British Grand Prix",
             # "Belgian Grand Prix",
             # "Hungarian Grand Prix",
-            "Dutch Grand Prix",
+            "Italian Grand Prix",
             # 'Italian Grand Prix',
             # 'Azerbaijan Grand Prix',
             # 'Singapore Grand Prix',
