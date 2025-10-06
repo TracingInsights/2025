@@ -3,7 +3,7 @@ name: FP2
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 13 19 9 *'
+    - cron: '0 14 3 10 *'
 
 
 
