@@ -1,13 +1,28 @@
-# 2025
-Public F1 telemetry files
+## 2025 Public F1 telemetry files
 
-Analyze/Visualize the data at [f1tel.com](https://f1tel.com/) or [TracingInsights.com](https://tracinginsights.com/)
+![GitHub Sponsors](https://img.shields.io/github/sponsors/TracingInsights?style=social)
+![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCehTBMnvLYkCbneNuC8d4_A?style=social)
+![Bluesky followers](https://img.shields.io/bluesky/followers/tracinginsights.com?style=social)
+![Mastodon Follow](https://img.shields.io/mastodon/follow/109801192184550885?domain=mas.to)
+![Subreddit subscribers](https://img.shields.io/reddit/subreddit-subscribers/formulaone?style=social)
+![Subreddit subscribers](https://img.shields.io/reddit/subreddit-subscribers/TracingInsights?style=social)
+![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/TracingInsights)
+![Instagram Follow](https://img.shields.io/badge/Instagram-E4405F?style=social&logo=instagram)
+![Threads Follow](https://img.shields.io/badge/Threads-000000?style=social&logo=threads)
+![Facebook Follow](https://img.shields.io/badge/Facebook-3D82ED?style=social&logo=facebook)
+![WhatsApp Follow](https://img.shields.io/badge/WhatsApp-25D366?style=social&logo=whatsapp)
+![Telegram Follow](https://img.shields.io/badge/Telegram-2CA5E0?style=social&logo=telegram)
+![Tumblr Follow](https://img.shields.io/badge/Tumblr-36465D?style=social&logo=tumblr)
+![Substack Follow](https://img.shields.io/badge/Substack-FF6719?style=social&logo=substack)
+![LinkedIn Follow](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin)
+____________________________
+
+
+## Analyze/Visualize the data at [f1tel.com](https://f1tel.com/) or [TracingInsights.com](https://tracinginsights.com/)
 
 Ask AI about this repo/data
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/TracingInsights-Archive/2025)
-
-[Ask ZReads](https://zread.ai/TracingInsights-Archive/2025)
 
 ## Data For Other Seasons
 
@@ -15,7 +30,7 @@ Ask AI about this repo/data
 
 
 ## Frequently Asked Questions
---------------------------
+
 Data availability timeline:
 
 *   Practice sessions: Approximately 30 minutes after session completion
@@ -195,16 +210,15 @@ If you have any feedback, please reach out to us at https://tracinginsights.com/
 
 ## Credits
 
-[FastF1](https://github.com/theOehrly/Fast-F1)
+ - [FastF1](https://github.com/theOehrly/Fast-F1)
 
-[MultiViewer](https://github.com/f1multiviewer)
+ - [MultiViewer](https://github.com/f1multiviewer)
 
-[Ergast/Jolpica](https://github.com/jolpica/jolpica-f1)
+ - [Ergast/Jolpica](https://github.com/jolpica/jolpica-f1)
 
 ## License
 
 [Apache-2.0 license](/LICENSE.md)
-
 
 
 ## Notice
