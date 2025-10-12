@@ -1,21 +1,59 @@
-## 2025 Public F1 telemetry files
+<p align="center">
+  <a href="https://tracinginsights.com/"><img src="Banner.png" alt="TracingInsights.com"></a>
+</p>
 
-![GitHub Sponsors](https://img.shields.io/github/sponsors/TracingInsights?style=social)
-![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCehTBMnvLYkCbneNuC8d4_A?style=social)
-![Bluesky followers](https://img.shields.io/bluesky/followers/tracinginsights.com?style=social)
-![Mastodon Follow](https://img.shields.io/mastodon/follow/109801192184550885?domain=mas.to)
-![Subreddit subscribers](https://img.shields.io/reddit/subreddit-subscribers/formulaone?style=social)
-![Subreddit subscribers](https://img.shields.io/reddit/subreddit-subscribers/TracingInsights?style=social)
-![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/TracingInsights)
-![Instagram Follow](https://img.shields.io/badge/Instagram-E4405F?style=social&logo=instagram)
-![Threads Follow](https://img.shields.io/badge/Threads-000000?style=social&logo=threads)
-![Facebook Follow](https://img.shields.io/badge/Facebook-3D82ED?style=social&logo=facebook)
-![WhatsApp Follow](https://img.shields.io/badge/WhatsApp-25D366?style=social&logo=whatsapp)
-![Telegram Follow](https://img.shields.io/badge/Telegram-2CA5E0?style=social&logo=telegram)
-![Tumblr Follow](https://img.shields.io/badge/Tumblr-36465D?style=social&logo=tumblr)
-![Substack Follow](https://img.shields.io/badge/Substack-FF6719?style=social&logo=substack)
-![LinkedIn Follow](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin)
-____________________________
+<p align="center">
+    <em>2025 Public F1 telemetry files - TracingInsights.com</em>
+</p>
+
+<p align="center">
+<a href="https://github.com/sponsors/TracingInsights" target="_blank">
+    <img src="https://img.shields.io/github/sponsors/TracingInsights?style=for-the-badge&logo=github" alt="GitHub Sponsors">
+</a>
+<a href="https://www.youtube.com/@TracingInsights" target="_blank">
+    <img src="https://img.shields.io/youtube/channel/subscribers/UCehTBMnvLYkCbneNuC8d4_A?style=for-the-badge&logo=youtube" alt="YouTube Channel Subscribers">
+</a>
+<a href="https://bsky.app/profile/tracinginsights.com" target="_blank">
+    <img src="https://img.shields.io/bluesky/followers/tracinginsights.com?style=for-the-badge&logo=bluesky" alt="Bluesky followers">
+</a>
+<a href="https://mas.to/@tracinginsights" target="_blank">
+    <img src="https://img.shields.io/mastodon/follow/109801192184550885?domain=mas.to&style=for-the-badge&logo=mastodon" alt="Mastodon Follow">
+</a>
+<a href="https://www.reddit.com/r/formulaone/" target="_blank">
+    <img src="https://img.shields.io/reddit/subreddit-subscribers/formulaone?style=for-the-badge&logo=reddit" alt="F1 Subreddit subscribers">
+</a>
+<a href="https://www.reddit.com/r/TracingInsights/" target="_blank">
+    <img src="https://img.shields.io/reddit/subreddit-subscribers/TracingInsights?style=for-the-badge&logo=reddit" alt="TracingInsights Subreddit subscribers">
+</a>
+<a href="https://x.com/TracingInsights" target="_blank">
+    <img src="https://img.shields.io/twitter/follow/TracingInsights?style=for-the-badge&logo=x" alt="X (formerly Twitter) Follow">
+</a>
+<a href="https://www.instagram.com/tracinginsights/" target="_blank">
+    <img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram" alt="Instagram Follow">
+</a>
+<a href="https://www.threads.net/@tracinginsights" target="_blank">
+    <img src="https://img.shields.io/badge/Threads-000000?style=for-the-badge&logo=threads" alt="Threads Follow">
+</a>
+<a href="https://www.facebook.com/tracinginsights" target="_blank">
+    <img src="https://img.shields.io/badge/Facebook-3D82ED?style=for-the-badge&logo=facebook" alt="Facebook Follow">
+</a>
+<a href="https://whatsapp.com/channel/0029VaBAOXA1HspzlVJg2Z08" target="_blank">
+    <img src="https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp" alt="WhatsApp Follow">
+</a>
+<a href="https://t.me/tracinginsights" target="_blank">
+    <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram" alt="Telegram Follow">
+</a>
+<a href="https://www.tumblr.com/tracinginsights" target="_blank">
+    <img src="https://img.shields.io/badge/Tumblr-36465D?style=for-the-badge&logo=tumblr" alt="Tumblr Follow">
+</a>
+<a href="https://tracinginsights.substack.com/" target="_blank">
+    <img src="https://img.shields.io/badge/Substack-FF6719?style=for-the-badge&logo=substack" alt="Substack Follow">
+</a>
+<a href="https://www.linkedin.com/company/tracinginsights" target="_blank">
+    <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin" alt="LinkedIn Follow">
+</a>
+<a href="https://doi.org/10.5281/zenodo.17312802"><img src="https://zenodo.org/badge/927761260.svg" alt="DOI"></a>
+</p>
 
 
 ## Analyze/Visualize the data at [f1tel.com](https://f1tel.com/) or [TracingInsights.com](https://tracinginsights.com/)
@@ -26,8 +64,11 @@ Ask AI about this repo/data
 
 ## Data For Other Seasons
 
-[2025](https://github.com/TracingInsights/2025) [2024](https://github.com/TracingInsights/2024) [2023](https://github.com/TracingInsights/2023) [2022](https://github.com/TracingInsights/2022) [2021](https://github.com/TracingInsights/2021) [2020](https://github.com/TracingInsights/2020) [2019](https://github.com/TracingInsights/2019) [2018](https://github.com/TracingInsights/2018) [Historical Data](https://github.com/TracingInsights-Archive/stats) [Pitstops](https://github.com/TracingInsights-Archive/PitStops) [Download Data in CSV](https://tracinginsights.com/analysis/download-raw-data/)
+<h2 align="center">
 
+[2025](https://github.com/TracingInsights/2025) | [2024](https://github.com/TracingInsights/2024) | [2023](https://github.com/TracingInsights/2023) | [2022](https://github.com/TracingInsights/2022) | [2021](https://github.com/TracingInsights/2021) | [2020](https://github.com/TracingInsights/2020) | [2019](https://github.com/TracingInsights/2019) | [2018](https://github.com/TracingInsights/2018) | [Historical Data](https://github.com/TracingInsights-Archive/stats) | [Pitstops](https://github.com/TracingInsights-Archive/PitStops) | [Download Data in CSV](https://tracinginsights.com/analysis/download-raw-data/) | [Data Page](https://tracinginsights.com/data)
+
+</h2>
 
 ## Frequently Asked Questions
 

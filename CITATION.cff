@@ -1,0 +1,18 @@
+abstract: <p>Data up to 2025 Singapore Grand Prix</p>
+authors:
+- affiliation: TracingInsights
+  family-names: TracingInsights-Archive
+- affiliation: '@actions'
+  family-names: actions-user
+- affiliation: TracingInsights
+  family-names: Tracing Insights
+cff-version: 1.2.0
+date-released: '2025-10-10'
+doi: 10.5281/zenodo.17312803
+license:
+- apache-2.0
+message: If you use this software, please cite it using the metadata from this file.
+repository-code: https://github.com/TracingInsights-Archive/2025/tree/SINGP
+title: 'TracingInsights-Archive/2025: v2025.18'
+type: software
+version: SINGP
