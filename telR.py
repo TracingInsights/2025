@@ -12,6 +12,7 @@ import requests
 from joblib import Memory, Parallel, delayed
 
 import utils
+from ergast_client import ErgastClient
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +35,7 @@ HEADERS = {"User-Agent": f"FastF1/"}
 # Global cache for session objects to prevent reloading
 SESSION_CACHE = {}
 CIRCUIT_INFO_CACHE = {}
+ERGAST_LAP_CACHE = {}
 
 # Initialize joblib memory for persistent caching
 memory = Memory(location='./cache_joblib', verbose=0)
@@ -56,6 +58,7 @@ class TelemetryExtractor:
         self.use_joblib = use_joblib
         self.n_jobs = n_jobs  # -1 uses all available cores
         self.batch_size = batch_size  # Laps per batch for joblib processing
+        self.ergast_client = ErgastClient()
         
         self.events = events or [
             # "Pre-Season Testing",
@@ -131,6 +134,55 @@ class TelemetryExtractor:
             logger.error(f"Error getting drivers for {event} {session}: {str(e)}")
             return {"drivers": []}
 
+    def _get_lap_times_from_ergast(
+        self, event: Union[str, int], session: str, driver: str, f1session=None
+    ) -> Optional[pd.DataFrame]:
+        """
+        Fetches lap times for a specific driver from the Ergast API using the custom client.
+        This function fetches all lap times for a race and caches them.
+        """
+        if session != "Race":
+            return None
+
+        cache_key = f"{self.year}-{event}-{session}"
+        if cache_key in ERGAST_LAP_CACHE:
+            laps_df = ERGAST_LAP_CACHE[cache_key]
+            driver_laps = laps_df[laps_df["driverId"] == f1session.get_driver(driver)["DriverId"]]
+            return driver_laps[["LapNumber", "LapTime_Ergast"]]
+
+        if f1session is None:
+            f1session = self.get_session(event, session)
+
+        try:
+            all_laps_df = self.ergast_client.get_lap_times(
+                season=self.year, round=f1session.event["RoundNumber"]
+            )
+
+            if all_laps_df.empty:
+                logger.info(f"No lap times found on Ergast for {event} {session}")
+                ERGAST_LAP_CACHE[cache_key] = pd.DataFrame()
+                return None
+
+            # Ensure 'time' column is string before concatenation
+            all_laps_df["time"] = all_laps_df["time"].astype(str)
+            all_laps_df["LapTime_Ergast"] = pd.to_timedelta("00:" + all_laps_df["time"])
+
+            ERGAST_LAP_CACHE[cache_key] = all_laps_df
+
+            driver_info = f1session.get_driver(driver)
+            if driver_info is None or "DriverId" not in driver_info:
+                logger.warning(f"Could not find DriverId for {driver}")
+                return None
+            driver_id = driver_info["DriverId"]
+
+            driver_laps = all_laps_df[all_laps_df["driverId"] == driver_id]
+
+            return driver_laps[["LapNumber", "LapTime_Ergast"]]
+
+        except Exception as e:
+            logger.error(f"Error fetching lap times from Ergast for {driver}: {str(e)}")
+            return None
+
     def laps_data(
         self, event: Union[str, int], session: str, driver: str, f1session=None
     ) -> Dict[str, List]:
@@ -141,6 +193,18 @@ class TelemetryExtractor:
 
             laps = f1session.laps
             driver_laps = laps.pick_drivers(driver).copy()
+
+            # Try to get lap times from Ergast and overwrite
+            if session == "Race":
+                ergast_laps = self._get_lap_times_from_ergast(event, session, driver, f1session)
+                if ergast_laps is not None and not ergast_laps.empty:
+                    driver_laps['LapNumber'] = driver_laps['LapNumber'].astype(int)
+                    ergast_laps['LapNumber'] = ergast_laps['LapNumber'].astype(int)
+                    driver_laps = pd.merge(driver_laps, ergast_laps, on="LapNumber", how="left")
+                    driver_laps["LapTime"] = driver_laps["LapTime_Ergast"].where(
+                        pd.notna(driver_laps["LapTime_Ergast"]), driver_laps["LapTime"]
+                    )
+                    driver_laps.drop(columns=["LapTime_Ergast"], inplace=True)
 
             # Helper function to convert timedelta to seconds
             def timedelta_to_seconds(time_value):
