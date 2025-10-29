@@ -1,10 +1,11 @@
-2025-10-29 07:28:34,112 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-10-29 07:28:34,112 - laptimes_extractor - INFO - Checking data availability for 2025 Chinese Grand Prix Race...
-2025-10-29 07:28:39,825 - laptimes_extractor - INFO - Data is available for 2025 Chinese Grand Prix Race
-2025-10-29 07:28:39,825 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-10-29 07:28:39,825 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-10-29 07:28:39,826 - laptimes_extractor - INFO - Events: ['Chinese Grand Prix', 'Japanese Grand Prix']
-2025-10-29 07:28:39,826 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-10-29 07:28:39,826 - laptimes_extractor - INFO - Processing Chinese Grand Prix - Race
-2025-10-29 07:28:39,826 - laptimes_extractor - INFO - Processing Japanese Grand Prix - Race
-2025-10-29 07:29:44,031 - laptimes_extractor - INFO - Laptimes extraction completed in 64.20 seconds
+2025-10-29 09:42:10,748 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-10-29 09:42:10,748 - laptimes_extractor - INFO - Checking data availability for 2025 Miami Grand Prix Race...
+2025-10-29 09:42:18,222 - laptimes_extractor - INFO - Data is available for 2025 Miami Grand Prix Race
+2025-10-29 09:42:18,222 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-10-29 09:42:18,222 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-10-29 09:42:18,222 - laptimes_extractor - INFO - Events: ['Miami Grand Prix', 'Emilia Romagna Grand Prix', 'Monaco Grand Prix']
+2025-10-29 09:42:18,222 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-10-29 09:42:18,223 - laptimes_extractor - INFO - Processing Miami Grand Prix - Race
+2025-10-29 09:42:18,223 - laptimes_extractor - INFO - Processing Emilia Romagna Grand Prix - Race
+2025-10-29 09:42:18,223 - laptimes_extractor - INFO - Processing Monaco Grand Prix - Race
+2025-10-29 09:43:55,798 - laptimes_extractor - INFO - Laptimes extraction completed in 97.58 seconds
