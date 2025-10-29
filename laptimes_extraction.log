@@ -1,0 +1,9 @@
+2025-10-29 07:15:18,515 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-10-29 07:15:18,515 - laptimes_extractor - INFO - Checking data availability for 2025 Australian Grand Prix Race...
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Data is available for 2025 Australian Grand Prix Race
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Events: ['Australian Grand Prix']
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-10-29 07:15:23,704 - laptimes_extractor - INFO - Processing Australian Grand Prix - Race
+2025-10-29 07:15:54,499 - laptimes_extractor - INFO - Laptimes extraction completed in 30.80 seconds
