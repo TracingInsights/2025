@@ -1,11 +1,11 @@
-2025-10-29 10:14:29,326 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-10-29 10:14:29,326 - laptimes_extractor - INFO - Checking data availability for 2025 Spanish Grand Prix Race...
-2025-10-29 10:14:35,550 - laptimes_extractor - INFO - Data is available for 2025 Spanish Grand Prix Race
-2025-10-29 10:14:35,550 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-10-29 10:14:35,550 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-10-29 10:14:35,550 - laptimes_extractor - INFO - Events: ['Spanish Grand Prix', 'Canadian Grand Prix', 'Austrian Grand Prix']
-2025-10-29 10:14:35,550 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-10-29 10:14:35,551 - laptimes_extractor - INFO - Processing Spanish Grand Prix - Race
-2025-10-29 10:14:35,551 - laptimes_extractor - INFO - Processing Canadian Grand Prix - Race
-2025-10-29 10:14:35,553 - laptimes_extractor - INFO - Processing Austrian Grand Prix - Race
-2025-10-29 10:16:24,455 - laptimes_extractor - INFO - Laptimes extraction completed in 108.90 seconds
+2025-10-29 10:30:41,270 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-10-29 10:30:41,270 - laptimes_extractor - INFO - Checking data availability for 2025 British Grand Prix Race...
+2025-10-29 10:30:49,228 - laptimes_extractor - INFO - Data is available for 2025 British Grand Prix Race
+2025-10-29 10:30:49,228 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-10-29 10:30:49,228 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-10-29 10:30:49,228 - laptimes_extractor - INFO - Events: ['British Grand Prix', 'Belgian Grand Prix', 'Hungarian Grand Prix']
+2025-10-29 10:30:49,229 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-10-29 10:30:49,229 - laptimes_extractor - INFO - Processing British Grand Prix - Race
+2025-10-29 10:30:49,229 - laptimes_extractor - INFO - Processing Belgian Grand Prix - Race
+2025-10-29 10:30:49,229 - laptimes_extractor - INFO - Processing Hungarian Grand Prix - Race
+2025-10-29 10:32:26,533 - laptimes_extractor - INFO - Laptimes extraction completed in 97.30 seconds
