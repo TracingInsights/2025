@@ -13,6 +13,7 @@ jobs:
         with:
           fetch-depth: 1
           sparse-checkout: |
+            cache/1.txt
             requirements.txt
             laptimesR.py
             ergast_client.py
