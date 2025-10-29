@@ -41,13 +41,10 @@ jobs:
       - name: Install dependencies with uv
         run: uv pip install --system -r requirements.txt
         
-      - name: Configure Git and sparse-checkout for commit
+      - name: Configure Git
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Configure sparse-checkout to track all paths but not checkout files
-          git sparse-checkout set --no-cone '/*'
           
       - name: Get full laptimes
         run: python laptimesR.py
@@ -56,10 +53,18 @@ jobs:
           
       - name: Commit and push changes
         run: |
-          # Stage all files (new and modified)
-          git add -A
+          # Find all JSON files created/modified by the script
+          # Add them directly without updating sparse-checkout
+          find . -type f -name "*.json" -not -path "./.git/*" | while read file; do
+            git add --force "$file"
+          done
           
-          # Check if there are changes
+          # Also add the log file if it exists
+          if [ -f "laptimes_extraction.log" ]; then
+            git add --force laptimes_extraction.log
+          fi
+          
+          # Check if there are staged changes
           if ! git diff --cached --quiet; then
               git commit -m "Update F1 telemetry data [skip ci]"
               git push origin main
