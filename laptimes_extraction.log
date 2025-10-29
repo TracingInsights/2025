@@ -1,11 +1,11 @@
-2025-10-29 11:49:56,809 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-10-29 11:49:56,809 - laptimes_extractor - INFO - Checking data availability for 2025 Dutch Grand Prix Race...
-2025-10-29 11:50:04,912 - laptimes_extractor - INFO - Data is available for 2025 Dutch Grand Prix Race
-2025-10-29 11:50:04,912 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-10-29 11:50:04,912 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-10-29 11:50:04,913 - laptimes_extractor - INFO - Events: ['Dutch Grand Prix', 'Italian Grand Prix', 'Azerbaijan Grand Prix']
-2025-10-29 11:50:04,913 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-10-29 11:50:04,913 - laptimes_extractor - INFO - Processing Dutch Grand Prix - Race
-2025-10-29 11:50:04,913 - laptimes_extractor - INFO - Processing Italian Grand Prix - Race
-2025-10-29 11:50:04,915 - laptimes_extractor - INFO - Processing Azerbaijan Grand Prix - Race
-2025-10-29 11:51:37,785 - laptimes_extractor - INFO - Laptimes extraction completed in 92.87 seconds
+2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Checking data availability for 2025 Singapore Grand Prix Race...
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 Singapore Grand Prix Race
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Events: ['Singapore Grand Prix', 'United States Grand Prix', 'Mexico City Grand Prix']
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Processing Singapore Grand Prix - Race
+2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing United States Grand Prix - Race
+2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing Mexico City Grand Prix - Race
+2025-10-29 12:00:53,191 - laptimes_extractor - INFO - Laptimes extraction completed in 99.14 seconds
