@@ -1,59 +1,71 @@
-- name: laptimes
-  uses: actions/checkout@v4
-  with:
-    fetch-depth: 1
-    sparse-checkout: |
-      requirements.txt
-      laptimesR.py
-      ergast_client.py
-      utils.py
-    sparse-checkout-cone-mode: false
+name: laptimes
 
-- name: Set up Python
-  uses: actions/setup-python@v5
-  with:
-    python-version: '3.10'
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '30 19 24 10 *'
 
-- name: Install uv
-  uses: astral-sh/setup-uv@v4
-  with:
-    enable-cache: true
-
-- name: Cache uv dependencies
-  uses: actions/cache@v4
-  with:
-    path: ~/.cache/uv
-    key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
-    restore-keys: |
-      ${{ runner.os }}-uv-py3.10-
-      ${{ runner.os }}-uv-
-
-- name: Install dependencies with uv
-  run: uv pip install --system -r requirements.txt
-
-- name: Configure Git
-  run: |
-    git config --local user.name "github-actions[bot]"
-    git config --local user.email "github-actions[bot]@users.noreply.github.com"
-
-- name: Disable sparse-checkout for script execution
-  run: |
-    git sparse-checkout disable
-    git reset --hard HEAD
-
-- name: Get full laptimes
-  run: python laptimesR.py
-  env:
-    GITHUB_ACTIONS: "true"
-
-- name: Commit and push changes
-  run: |
-    git add .
-    if ! git diff --cached --quiet; then
-        git commit -m "Update F1 telemetry data [skip ci]"
-        git push origin main
-    else
-        echo "No changes to commit"
-    fi
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  update-laptimes:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            requirements.txt
+            laptimesR.py
+            ergast_client.py
+            utils.py
+          sparse-checkout-cone-mode: false
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-py3.10-
+            ${{ runner.os }}-uv-
+            
+      - name: Install dependencies with uv
+        run: uv pip install --system -r requirements.txt
+        
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Disable sparse-checkout for script execution
+        run: |
+          git sparse-checkout disable
+          git reset --hard HEAD
+          
+      - name: Get full laptimes
+        run: python laptimesR.py
+        env:
+          GITHUB_ACTIONS: "true"
+          
+      - name: Commit and push changes
+        run: |
+          git add .
+          if ! git diff --cached --quiet; then
+              git commit -m "Update F1 telemetry data [skip ci]"
+              git push origin main
+          else
+              echo "No changes to commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
