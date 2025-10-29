@@ -54,15 +54,16 @@ jobs:
           
       - name: Commit and push changes
         run: |
+          # Temporarily disable sparse-checkout advice and add files with --sparse flag
+          git config advice.updateSparsePath false
+          
           # Find all JSON files created/modified by the script
-          # Add them directly without updating sparse-checkout
-          find . -type f -name "*.json" -not -path "./.git/*" | while read file; do
-            git add --force "$file"
-          done
+          # Add them with --sparse flag to allow adding outside sparse-checkout
+          find . -type f -name "*.json" -not -path "./.git/*" -exec git add --force --sparse {} +
           
           # Also add the log file if it exists
           if [ -f "laptimes_extraction.log" ]; then
-            git add --force laptimes_extraction.log
+            git add --force --sparse laptimes_extraction.log
           fi
           
           # Check if there are staged changes
