@@ -59,7 +59,7 @@ class ErgastClient:
         """
         all_laps_data = []
         offset = 0
-        limit = 1000  # Max limit for the API
+        limit = 100
 
         while True:
             url = f"{BASE_URL}f1/{season}/{round}/laps.json"
