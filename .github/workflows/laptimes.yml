@@ -1,16 +1,14 @@
 name: laptimes
-
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   schedule:
     - cron: '30 19 24 10 *'
-
 jobs:
   update-laptimes:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (scripts only)
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -43,15 +41,13 @@ jobs:
       - name: Install dependencies with uv
         run: uv pip install --system -r requirements.txt
         
-      - name: Configure Git
+      - name: Configure Git and sparse-checkout for commit
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           
-      - name: Disable sparse-checkout for script execution
-        run: |
-          git sparse-checkout disable
-          git reset --hard HEAD
+          # Configure sparse-checkout to track all paths but not checkout files
+          git sparse-checkout set --no-cone '/*'
           
       - name: Get full laptimes
         run: python laptimesR.py
@@ -60,7 +56,10 @@ jobs:
           
       - name: Commit and push changes
         run: |
-          git add .
+          # Stage all files (new and modified)
+          git add -A
+          
+          # Check if there are changes
           if ! git diff --cached --quiet; then
               git commit -m "Update F1 telemetry data [skip ci]"
               git push origin main
