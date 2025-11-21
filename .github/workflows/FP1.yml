@@ -6,35 +6,39 @@ on:
     - cron: '30 1 21 11 *'
 
 env:
-  PYTHONUNBUFFERED: 1
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
   extract-telemetry:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repository (scripts only)
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
+          sparse-checkout: |
+            cache/temp.txt
+            requirements.txt
+            telFP1.py            
+            utils.py
+          sparse-checkout-cone-mode: false    
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v3
+        uses: astral-sh/setup-uv@v4
         with:
-          path: |
-            ~/.cache/uv
-            ~/.uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+          enable-cache: false
+          
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
+            ${{ runner.os }}-uv-py3.10-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies with uv
@@ -43,12 +47,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --local user.name "github-actions"
-          git config --local user.email "action@github.com"
-          # Minimal Git configuration for performance
-          git config --global core.compression 0
-          git config --global core.preloadIndex true
-          git config --global core.fsyncMethod batch
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run Telemetry Extraction
         run: python telFP1.py
