@@ -5,8 +5,6 @@ on:
   schedule:
     - cron: '30 1 21 11 *'
 
-
-
 env:
   PYTHONUNBUFFERED: 1
 
@@ -59,15 +57,21 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          # Fast pull strategy
-          git pull --no-rebase --no-edit origin main || true
-
-          # Add all changes
-          git add .
-
-          # Only commit if there are changes
-          if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update F1 telemetry data [skip ci]" -a
+          # Temporarily disable sparse-checkout advice and add files with --sparse flag
+          git config advice.updateSparsePath false
+          
+          # Find all JSON files created/modified by the script
+          # Add them with --sparse flag to allow adding outside sparse-checkout
+          find . -type f -name "*.json" -not -path "./.git/*" -exec git add --force --sparse {} +
+          
+          # Also add the log file if it exists
+          if [ -f "laptimes_extraction.log" ]; then
+            git add --force --sparse laptimes_extraction.log
+          fi
+          
+          # Check if there are staged changes
+          if ! git diff --cached --quiet; then
+              git commit -m "Update F1 telemetry data [skip ci]"
               git push origin main
           else
               echo "No changes to commit"
