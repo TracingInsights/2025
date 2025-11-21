@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 1
           sparse-checkout: |
-            cache/temp.txt
+            cache/1.txt
             requirements.txt
             telFP1.py            
             utils.py
