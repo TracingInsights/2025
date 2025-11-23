@@ -1,11 +1,30 @@
-2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Checking data availability for 2025 Singapore Grand Prix Race...
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 Singapore Grand Prix Race
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Events: ['Singapore Grand Prix', 'United States Grand Prix', 'Mexico City Grand Prix']
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Processing Singapore Grand Prix - Race
-2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing United States Grand Prix - Race
-2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing Mexico City Grand Prix - Race
-2025-10-29 12:00:53,191 - laptimes_extractor - INFO - Laptimes extraction completed in 99.14 seconds
+2025-11-23 06:04:21,120 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-11-23 06:04:21,120 - laptimes_extractor - INFO - Checking data availability for 2025 São Paulo Grand Prix Race...
+2025-11-23 06:04:28,065 - laptimes_extractor - INFO - Data is available for 2025 São Paulo Grand Prix Race
+2025-11-23 06:04:28,066 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-11-23 06:04:28,066 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-11-23 06:04:28,066 - laptimes_extractor - INFO - Events: ['São Paulo Grand Prix', 'Las Vegas Grand Prix']
+2025-11-23 06:04:28,066 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-11-23 06:04:28,066 - laptimes_extractor - INFO - Processing São Paulo Grand Prix - Race
+2025-11-23 06:04:28,067 - laptimes_extractor - INFO - Processing Las Vegas Grand Prix - Race
+2025-11-23 06:04:53,059 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:04:53,065 - laptimes_extractor - ERROR - Error getting lap data for LEC in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,067 - laptimes_extractor - ERROR - Error getting lap data for GAS in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,069 - laptimes_extractor - ERROR - Error getting lap data for HUL in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,071 - laptimes_extractor - ERROR - Error getting lap data for STR in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,073 - laptimes_extractor - ERROR - Error getting lap data for OCO in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,074 - laptimes_extractor - ERROR - Error getting lap data for BEA in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,076 - laptimes_extractor - ERROR - Error getting lap data for COL in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,078 - laptimes_extractor - ERROR - Error getting lap data for ALB in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,080 - laptimes_extractor - ERROR - Error getting lap data for ANT in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,082 - laptimes_extractor - ERROR - Error getting lap data for BOR in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,084 - laptimes_extractor - ERROR - Error getting lap data for HAM in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:53,086 - laptimes_extractor - ERROR - Error getting lap data for TSU in Las Vegas Grand Prix Race: 'driverId'
+2025-11-23 06:04:56,960 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:04:57,961 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:04:59,962 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:05:01,964 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:05:01,964 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:05:12,975 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:05:15,978 - laptimes_extractor - INFO - No lap times found on Ergast for Las Vegas Grand Prix Race
+2025-11-23 06:05:15,996 - laptimes_extractor - INFO - Laptimes extraction completed in 47.93 seconds
