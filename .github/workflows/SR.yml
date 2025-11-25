@@ -6,39 +6,40 @@ on:
     - cron: '0 15 8 11 *'
 
 
-
 env:
-  PYTHONUNBUFFERED: 1
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
 
 jobs:
   extract-telemetry:
     runs-on: ubuntu-latest
-
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repository (scripts only)
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
-
+          sparse-checkout: |
+            cache/1.txt
+            requirements.txt
+            telSR.py            
+            utils.py
+          sparse-checkout-cone-mode: false    
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Cache uv dependencies
-        uses: actions/cache@v3
+        uses: astral-sh/setup-uv@v4
         with:
-          path: |
-            ~/.cache/uv
-            ~/.uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+          enable-cache: false
+          
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
+            ${{ runner.os }}-uv-py3.10-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies with uv
@@ -47,12 +48,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config --local user.name "github-actions"
-          git config --local user.email "action@github.com"
-          # Minimal Git configuration for performance
-          git config --global core.compression 0
-          git config --global core.preloadIndex true
-          git config --global core.fsyncMethod batch
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run Telemetry Extraction
         run: python telSR.py
@@ -61,15 +58,21 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          # Fast pull strategy
-          git pull --no-rebase --no-edit origin main || true
-
-          # Add all changes
-          git add .
-
-          # Only commit if there are changes
-          if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update F1 telemetry data [skip ci]" -a
+          # Temporarily disable sparse-checkout advice and add files with --sparse flag
+          git config advice.updateSparsePath false
+          
+          # Find all JSON files created/modified by the script
+          # Add them with --sparse flag to allow adding outside sparse-checkout
+          find . -type f -name "*.json" -not -path "./.git/*" -exec git add --force --sparse {} +
+          
+          # Also add the log file if it exists
+          if [ -f "laptimes_extraction.log" ]; then
+            git add --force --sparse laptimes_extraction.log
+          fi
+          
+          # Check if there are staged changes
+          if ! git diff --cached --quiet; then
+              git commit -m "Update F1 telemetry data [skip ci]"
               git push origin main
           else
               echo "No changes to commit"

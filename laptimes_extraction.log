@@ -1,11 +1,9 @@
-2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-10-29 11:59:05,244 - laptimes_extractor - INFO - Checking data availability for 2025 Singapore Grand Prix Race...
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 Singapore Grand Prix Race
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Events: ['Singapore Grand Prix', 'United States Grand Prix', 'Mexico City Grand Prix']
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-10-29 11:59:14,055 - laptimes_extractor - INFO - Processing Singapore Grand Prix - Race
-2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing United States Grand Prix - Race
-2025-10-29 11:59:14,056 - laptimes_extractor - INFO - Processing Mexico City Grand Prix - Race
-2025-10-29 12:00:53,191 - laptimes_extractor - INFO - Laptimes extraction completed in 99.14 seconds
+2025-11-25 07:18:57,768 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-11-25 07:18:57,768 - laptimes_extractor - INFO - Checking data availability for 2025 Las Vegas Grand Prix Race...
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Data is available for 2025 Las Vegas Grand Prix Race
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Events: ['Las Vegas Grand Prix']
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-11-25 07:19:03,822 - laptimes_extractor - INFO - Processing Las Vegas Grand Prix - Race
+2025-11-25 07:19:31,487 - laptimes_extractor - INFO - Laptimes extraction completed in 27.67 seconds
