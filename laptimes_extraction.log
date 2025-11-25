@@ -1,10 +1,9 @@
-2025-11-23 07:26:43,527 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
-2025-11-23 07:26:43,527 - laptimes_extractor - INFO - Checking data availability for 2025 São Paulo Grand Prix Race...
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Data is available for 2025 São Paulo Grand Prix Race
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Events: ['São Paulo Grand Prix', 'Las Vegas Grand Prix']
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Sessions: ['Race']
-2025-11-23 07:26:50,382 - laptimes_extractor - INFO - Processing São Paulo Grand Prix - Race
-2025-11-23 07:26:50,383 - laptimes_extractor - INFO - Processing Las Vegas Grand Prix - Race
-2025-11-23 07:27:56,802 - laptimes_extractor - INFO - Laptimes extraction completed in 66.42 seconds
+2025-11-25 07:18:57,768 - laptimes_extractor - INFO - Starting to wait for 2025 season data...
+2025-11-25 07:18:57,768 - laptimes_extractor - INFO - Checking data availability for 2025 Las Vegas Grand Prix Race...
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Data is available for 2025 Las Vegas Grand Prix Race
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Data is available for 2025 season. Starting extraction...
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Starting laptimes extraction for 2025 season
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Events: ['Las Vegas Grand Prix']
+2025-11-25 07:19:03,821 - laptimes_extractor - INFO - Sessions: ['Race']
+2025-11-25 07:19:03,822 - laptimes_extractor - INFO - Processing Las Vegas Grand Prix - Race
+2025-11-25 07:19:31,487 - laptimes_extractor - INFO - Laptimes extraction completed in 27.67 seconds
