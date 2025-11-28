@@ -3,7 +3,7 @@ name: SR
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 15 8 11 *'
+    - cron: '0 15 29 11 *'
 
 
 env:
