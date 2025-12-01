@@ -3,7 +3,7 @@ name: SQ
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 19 7 11 *'
+    - cron: '30 18 28 11 *'
 
 
 env:
