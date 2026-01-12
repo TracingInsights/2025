@@ -9,7 +9,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 import requests
-from joblib import Memory, Parallel, delayed
+from joblib import Memory, Parallel, delayed, parallel_config
 
 import utils
 
@@ -37,6 +37,9 @@ CIRCUIT_INFO_CACHE = {}
 
 # Initialize joblib memory for persistent caching
 memory = Memory(location="./cache_joblib", verbose=0)
+
+# Use threading backend to avoid loky file descriptor leaks
+parallel_config(backend="threading")
 
 
 # Session name to number mapping for testing sessions
@@ -81,8 +84,7 @@ class TelemetryExtractor:
         # Pre-season testing typically has 3 sessions (3 days of testing)
         self.sessions = sessions or [
             "Practice 1",
-            "Practice 2", 
-            "Practice 3",
+            #  "Practice 2", "Practice 3"
         ]
 
     def _get_session_number(self, session: str) -> int:
@@ -318,9 +320,14 @@ class TelemetryExtractor:
         """Process a single lap and extract telemetry data."""
         try:
             lap = driver_laps[driver_laps["LapNumber"] == lap_number].iloc[0]
-            telemetry = lap.get_telemetry()
+            
+            try:
+                telemetry = lap.get_telemetry()
+            except (ValueError, KeyError) as e:
+                logger.debug(f"No telemetry available for lap {lap_number} ({driver}): {e}")
+                return {"lap": lap_number, "status": "no_telemetry"}
 
-            if telemetry.empty:
+            if telemetry is None or telemetry.empty:
                 return {"lap": lap_number, "status": "no_telemetry"}
 
             # Helper function to convert array values, replacing NaN with "None"
