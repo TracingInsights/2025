@@ -1,0 +1,80 @@
+name: FP1
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 10 5 12 *'
+
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
+jobs:
+  extract-telemetry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (scripts only)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            cache/1.txt
+            requirements.txt
+            preseason.py            
+            utils.py
+          sparse-checkout-cone-mode: false    
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: false
+          
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-py3.10-
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install --system -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Telemetry Extraction
+        run: python preseason.py
+        env:
+          GITHUB_ACTIONS: "true"
+
+      - name: Commit and push changes
+        run: |
+          # Temporarily disable sparse-checkout advice and add files with --sparse flag
+          git config advice.updateSparsePath false
+          
+          # Find all JSON files created/modified by the script
+          # Add them with --sparse flag to allow adding outside sparse-checkout
+          find . -type f -name "*.json" -not -path "./.git/*" -exec git add --force --sparse {} +
+          
+          # Also add the log file if it exists
+          if [ -f "laptimes_extraction.log" ]; then
+            git add --force --sparse laptimes_extraction.log
+          fi
+          
+          # Check if there are staged changes
+          if ! git diff --cached --quiet; then
+              git commit -m "Update F1 telemetry data [skip ci]"
+              git push origin main
+          else
+              echo "No changes to commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
