@@ -469,7 +469,7 @@ class TelemetryExtractor:
                     for i in range(0, len(lap_numbers), self.batch_size)
                 ]
 
-                Parallel(n_jobs=self.n_jobs)(
+                Parallel(n_jobs=self.n_jobs, backend="threading")(
                     delayed(self.process_lap_batch)(
                         session,
                         driver,
@@ -749,3 +749,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
