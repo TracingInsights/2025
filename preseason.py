@@ -647,7 +647,7 @@ def main():
         extractor = PreSeasonTelemetryExtractor(
             year=2025,
             test_number=1,
-            session_numbers=[1],
+            session_numbers=[1,2,3],
         )
 
         wait_time = 30
@@ -685,3 +685,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
