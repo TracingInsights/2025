@@ -1,17 +1,15 @@
 import gc
-import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 
 import fastf1
 import numpy as np
+import orjson
 import pandas as pd
 import psutil
 import requests
-from joblib import Memory, Parallel, delayed
 
 import utils
 
@@ -34,8 +32,6 @@ HEADERS = {"User-Agent": "FastF1/"}
 SESSION_CACHE = {}
 CIRCUIT_INFO_CACHE = {}
 
-memory = Memory(location="./cache_joblib", verbose=0)
-
 
 class PreSeasonTelemetryExtractor:
     """Extractor for F1 Pre-Season Testing telemetry data using fastf1.get_testing_session."""
@@ -45,9 +41,6 @@ class PreSeasonTelemetryExtractor:
         year: int = DEFAULT_YEAR,
         test_number: int = 1,
         session_numbers: List[int] = None,
-        use_joblib: bool = True,
-        n_jobs: int = -1,
-        batch_size: int = 8,
     ):
         """Initialize the PreSeasonTelemetryExtractor.
 
@@ -55,16 +48,10 @@ class PreSeasonTelemetryExtractor:
             year: The F1 season year
             test_number: The testing event number (usually 1, sometimes 2)
             session_numbers: List of session numbers (1, 2, 3 for Practice 1, 2, 3)
-            use_joblib: Whether to use joblib for parallel processing
-            n_jobs: Number of jobs for joblib (-1 uses all cores)
-            batch_size: Laps per batch for joblib processing
         """
         self.year = year
         self.test_number = test_number
         self.session_numbers = session_numbers or [1, 2, 3]
-        self.use_joblib = use_joblib
-        self.n_jobs = n_jobs
-        self.batch_size = batch_size
         self.session_name_map = {
             1: "Practice 1",
             2: "Practice 2",
@@ -223,230 +210,124 @@ class PreSeasonTelemetryExtractor:
             }
 
     @staticmethod
-    @memory.cache
+    def _smooth_outliers_vectorized(arr, threshold, use_abs=False):
+        """Vectorized outlier smoothing using forward fill logic."""
+        arr = arr.copy()
+        if use_abs:
+            mask = np.abs(arr[1:-1]) > threshold
+        else:
+            mask = arr[1:-1] > threshold
+        indices = np.where(mask)[0] + 1
+        for i in indices:
+            arr[i] = arr[i - 1]
+        return arr
+
+    @staticmethod
     def calculate_x_acceleration(vx_array, time_array, Nax):
-        """Calculate and smooth X-acceleration component using joblib caching."""
+        """Calculate and smooth X-acceleration component."""
         dtime = np.gradient(time_array)
         ax = np.gradient(vx_array) / dtime
-
-        for i in np.arange(1, len(ax) - 1).astype(int):
-            if ax[i] > 25:
-                ax[i] = ax[i - 1]
-
-        ax_smooth = np.convolve(ax, np.ones((Nax,)) / Nax, mode="same")
-        return ax_smooth
+        ax = PreSeasonTelemetryExtractor._smooth_outliers_vectorized(
+            ax, 25, use_abs=False
+        )
+        kernel = np.ones(Nax) / Nax
+        return np.convolve(ax, kernel, mode="same")
 
     @staticmethod
-    @memory.cache
     def calculate_y_acceleration(vx_array, x_array, y_array, dist_array, Nay):
-        """Calculate and smooth Y-acceleration component using joblib caching."""
+        """Calculate and smooth Y-acceleration component."""
         dx = np.gradient(x_array)
         dy = np.gradient(y_array)
-
-        theta = np.arctan2(dy, (dx + np.finfo(float).eps))
+        theta = np.arctan2(dy, dx + np.finfo(float).eps)
         theta[0] = theta[1]
         theta_noDiscont = np.unwrap(theta)
-
         ds = np.gradient(dist_array)
         dtheta = np.gradient(theta_noDiscont)
-
-        for i in np.arange(1, len(dtheta) - 1).astype(int):
-            if abs(dtheta[i]) > 0.5:
-                dtheta[i] = dtheta[i - 1]
-
+        dtheta = PreSeasonTelemetryExtractor._smooth_outliers_vectorized(
+            dtheta, 0.5, use_abs=True
+        )
         C = dtheta / (ds + 0.0001)
         ay = np.square(vx_array) * C
-
-        indexProblems = np.abs(ay) > 150
-        ay[indexProblems] = 0
-
-        ay_smooth = np.convolve(ay, np.ones((Nay,)) / Nay, mode="same")
-        return ay_smooth
+        ay[np.abs(ay) > 150] = 0
+        kernel = np.ones(Nay) / Nay
+        return np.convolve(ay, kernel, mode="same")
 
     @staticmethod
-    @memory.cache
     def calculate_z_acceleration(vx_array, x_array, z_array, dist_array, Naz):
-        """Calculate and smooth Z-acceleration component using joblib caching."""
+        """Calculate and smooth Z-acceleration component."""
         dx = np.gradient(x_array)
         dz = np.gradient(z_array)
-
-        z_theta = np.arctan2(dz, (dx + np.finfo(float).eps))
+        z_theta = np.arctan2(dz, dx + np.finfo(float).eps)
         z_theta[0] = z_theta[1]
         z_theta_noDiscont = np.unwrap(z_theta)
-
         ds = np.gradient(dist_array)
         z_dtheta = np.gradient(z_theta_noDiscont)
-
-        for i in np.arange(1, len(z_dtheta) - 1).astype(int):
-            if abs(z_dtheta[i]) > 0.5:
-                z_dtheta[i] = z_dtheta[i - 1]
-
+        z_dtheta = PreSeasonTelemetryExtractor._smooth_outliers_vectorized(
+            z_dtheta, 0.5, use_abs=True
+        )
         z_C = z_dtheta / (ds + 0.0001)
         az = np.square(vx_array) * z_C
-
-        indexProblems = np.abs(az) > 150
-        az[indexProblems] = 0
-
-        az_smooth = np.convolve(az, np.ones((Naz,)) / Naz, mode="same")
-        return az_smooth
+        az[np.abs(az) > 150] = 0
+        kernel = np.ones(Naz) / Naz
+        return np.convolve(az, kernel, mode="same")
 
     def accCalc(
         self, telemetry: pd.DataFrame, Nax: int, Nay: int, Naz: int
     ) -> pd.DataFrame:
         """Calculate acceleration components from telemetry data."""
-        vx = telemetry["Speed"] / 3.6
-        time_float = telemetry["Time"] / np.timedelta64(1, "s")
+        vx_array = (telemetry["Speed"].values / 3.6).astype(np.float64)
+        time_array = (telemetry["Time"].values / np.timedelta64(1, "s")).astype(
+            np.float64
+        )
+        x_array = telemetry["X"].values.astype(np.float64)
+        y_array = telemetry["Y"].values.astype(np.float64)
+        z_array = telemetry["Z"].values.astype(np.float64)
+        dist_array = telemetry["Distance"].values.astype(np.float64)
 
-        vx_array = vx.values
-        time_array = time_float.values
-        x_array = telemetry["X"].values
-        y_array = telemetry["Y"].values
-        z_array = telemetry["Z"].values
-        dist_array = telemetry["Distance"].values
-
-        if self.use_joblib and len(telemetry) > 100:
-            results = Parallel(
-                n_jobs=min(3, self.n_jobs if self.n_jobs > 0 else 3),
-                backend="threading",
-            )(
-                [
-                    delayed(self.calculate_x_acceleration)(vx_array, time_array, Nax),
-                    delayed(self.calculate_y_acceleration)(
-                        vx_array, x_array, y_array, dist_array, Nay
-                    ),
-                    delayed(self.calculate_z_acceleration)(
-                        vx_array, x_array, z_array, dist_array, Naz
-                    ),
-                ]
-            )
-
-            ax_smooth, ay_smooth, az_smooth = results
-        else:
-            ax_smooth = self.calculate_x_acceleration(vx_array, time_array, Nax)
-            ay_smooth = self.calculate_y_acceleration(
-                vx_array, x_array, y_array, dist_array, Nay
-            )
-            az_smooth = self.calculate_z_acceleration(
-                vx_array, x_array, z_array, dist_array, Naz
-            )
+        ax_smooth = self.calculate_x_acceleration(vx_array, time_array, Nax)
+        ay_smooth = self.calculate_y_acceleration(
+            vx_array, x_array, y_array, dist_array, Nay
+        )
+        az_smooth = self.calculate_z_acceleration(
+            vx_array, x_array, z_array, dist_array, Naz
+        )
 
         telemetry = telemetry.copy()
         telemetry["Ax"] = ax_smooth
         telemetry["Ay"] = ay_smooth
         telemetry["Az"] = az_smooth
-
         return telemetry
-
-    @staticmethod
-    @memory.cache
-    def cached_telemetry_processing(
-        time_array,
-        rpm_array,
-        speed_array,
-        gear_array,
-        throttle_array,
-        brake_array,
-        drs_array,
-        distance_array,
-        rel_distance_array,
-        x_array,
-        y_array,
-        z_array,
-        ax_array,
-        ay_array,
-        az_array,
-        data_key,
-    ):
-        """Cache the final telemetry data structure."""
-        return {
-            "tel": {
-                "time": time_array.tolist()
-                if hasattr(time_array, "tolist")
-                else time_array,
-                "rpm": rpm_array.tolist()
-                if hasattr(rpm_array, "tolist")
-                else rpm_array,
-                "speed": speed_array.tolist()
-                if hasattr(speed_array, "tolist")
-                else speed_array,
-                "gear": gear_array.tolist()
-                if hasattr(gear_array, "tolist")
-                else gear_array,
-                "throttle": throttle_array.tolist()
-                if hasattr(throttle_array, "tolist")
-                else throttle_array,
-                "brake": brake_array.tolist()
-                if hasattr(brake_array, "tolist")
-                else brake_array,
-                "drs": drs_array.tolist()
-                if hasattr(drs_array, "tolist")
-                else drs_array,
-                "distance": distance_array.tolist()
-                if hasattr(distance_array, "tolist")
-                else distance_array,
-                "rel_distance": rel_distance_array.tolist()
-                if hasattr(rel_distance_array, "tolist")
-                else rel_distance_array,
-                "acc_x": ax_array.tolist() if hasattr(ax_array, "tolist") else ax_array,
-                "acc_y": ay_array.tolist() if hasattr(ay_array, "tolist") else ay_array,
-                "acc_z": az_array.tolist() if hasattr(az_array, "tolist") else az_array,
-                "x": x_array.tolist() if hasattr(x_array, "tolist") else x_array,
-                "y": y_array.tolist() if hasattr(y_array, "tolist") else y_array,
-                "z": z_array.tolist() if hasattr(z_array, "tolist") else z_array,
-                "dataKey": data_key,
-            }
-        }
 
     def process_single_lap_telemetry_direct(
         self, telemetry: pd.DataFrame, data_key: str
     ) -> Dict:
         """Process telemetry for a single lap."""
         acc_tel = self.accCalc(telemetry, 3, 9, 9)
-        acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
+        time_sec = acc_tel["Time"].dt.total_seconds().values
+        drs_values = acc_tel["DRS"].values
+        drs_binary = np.isin(drs_values, [10, 12, 14]).astype(np.int8)
+        brake_binary = (acc_tel["Brake"].values != 0).astype(np.int8)
 
-        acc_tel["DRS"] = acc_tel["DRS"].apply(lambda x: 1 if x in [10, 12, 14] else 0)
-        acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x else 0)
-
-        if self.use_joblib:
-            return self.cached_telemetry_processing(
-                acc_tel["Time"].values,
-                acc_tel["RPM"].values,
-                acc_tel["Speed"].values,
-                acc_tel["nGear"].values,
-                acc_tel["Throttle"].values,
-                acc_tel["Brake"].values,
-                acc_tel["DRS"].values,
-                acc_tel["Distance"].values,
-                acc_tel["RelativeDistance"].values,
-                acc_tel["X"].values,
-                acc_tel["Y"].values,
-                acc_tel["Z"].values,
-                acc_tel["Ax"].values,
-                acc_tel["Ay"].values,
-                acc_tel["Az"].values,
-                data_key,
-            )
-        else:
-            return {
-                "tel": {
-                    "time": acc_tel["Time"].tolist(),
-                    "rpm": acc_tel["RPM"].tolist(),
-                    "speed": acc_tel["Speed"].tolist(),
-                    "gear": acc_tel["nGear"].tolist(),
-                    "throttle": acc_tel["Throttle"].tolist(),
-                    "brake": acc_tel["Brake"].tolist(),
-                    "drs": acc_tel["DRS"].tolist(),
-                    "distance": acc_tel["Distance"].tolist(),
-                    "rel_distance": acc_tel["RelativeDistance"].tolist(),
-                    "acc_x": acc_tel["Ax"].tolist(),
-                    "acc_y": acc_tel["Ay"].tolist(),
-                    "acc_z": acc_tel["Az"].tolist(),
-                    "x": acc_tel["X"].tolist(),
-                    "y": acc_tel["Y"].tolist(),
-                    "z": acc_tel["Z"].tolist(),
-                    "dataKey": data_key,
-                }
+        return {
+            "tel": {
+                "time": time_sec.tolist(),
+                "rpm": acc_tel["RPM"].values.tolist(),
+                "speed": acc_tel["Speed"].values.tolist(),
+                "gear": acc_tel["nGear"].values.tolist(),
+                "throttle": acc_tel["Throttle"].values.tolist(),
+                "brake": brake_binary.tolist(),
+                "drs": drs_binary.tolist(),
+                "distance": acc_tel["Distance"].values.tolist(),
+                "rel_distance": acc_tel["RelativeDistance"].values.tolist(),
+                "acc_x": acc_tel["Ax"].tolist(),
+                "acc_y": acc_tel["Ay"].tolist(),
+                "acc_z": acc_tel["Az"].tolist(),
+                "x": acc_tel["X"].values.tolist(),
+                "y": acc_tel["Y"].values.tolist(),
+                "z": acc_tel["Z"].values.tolist(),
+                "dataKey": data_key,
             }
+        }
 
     def process_lap(
         self,
@@ -497,15 +378,15 @@ class PreSeasonTelemetryExtractor:
                 telemetry, data_key
             )
 
-            with open(file_path, "w") as json_file:
-                json.dump(telemetry_data, json_file)
+            with open(file_path, "wb") as json_file:
+                json_file.write(orjson.dumps(telemetry_data))
 
             return True
         except Exception as e:
             logger.error(f"Error processing lap {lap_number} for {driver}: {str(e)}")
             return False
 
-    def process_lap_batch_with_joblib(
+    def process_lap_batch(
         self,
         session_number: int,
         driver: str,
@@ -513,20 +394,12 @@ class PreSeasonTelemetryExtractor:
         driver_dir: str,
         f1session=None,
     ) -> List[bool]:
-        """Process a batch of laps using joblib."""
-
-        def process_single_lap_job(lap_number):
-            return self.process_lap(
-                session_number, driver, lap_number, driver_dir, f1session
+        """Process a batch of laps sequentially (more efficient for GHA 2-core runners)."""
+        results = []
+        for lap_num in lap_numbers:
+            results.append(
+                self.process_lap(session_number, driver, lap_num, driver_dir, f1session)
             )
-
-        if self.use_joblib and len(lap_numbers) > 1:
-            results = Parallel(n_jobs=self.n_jobs, backend="threading")(
-                delayed(process_single_lap_job)(lap_num) for lap_num in lap_numbers
-            )
-        else:
-            results = [process_single_lap_job(lap_num) for lap_num in lap_numbers]
-
         return results
 
     def get_circuit_info(self, session_number: int) -> Optional[Dict[str, List]]:
@@ -635,57 +508,17 @@ class PreSeasonTelemetryExtractor:
             laptimes["compound"] = [
                 "None" if pd.isna(x) else x for x in laptimes["compound"]
             ]
-            with open(f"{driver_dir}/laptimes.json", "w") as json_file:
-                json.dump(laptimes, json_file)
+            with open(f"{driver_dir}/laptimes.json", "wb") as json_file:
+                json_file.write(orjson.dumps(laptimes))
 
             laps = f1session.laps
             driver_laps = laps.pick_drivers(driver).copy()
             driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
-            driver_laps["LapTimeSeconds"] = driver_laps["LapTime"].apply(
-                lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
-            )
             lap_numbers = driver_laps["LapNumber"].tolist()
 
-            if self.use_joblib and len(lap_numbers) > self.batch_size:
-                lap_batches = [
-                    lap_numbers[i : i + self.batch_size]
-                    for i in range(0, len(lap_numbers), self.batch_size)
-                ]
-
-                with ThreadPoolExecutor(
-                    max_workers=min(4, len(lap_batches))
-                ) as executor:
-                    futures = [
-                        executor.submit(
-                            self.process_lap_batch_with_joblib,
-                            session_number,
-                            driver,
-                            batch,
-                            driver_dir,
-                            f1session,
-                        )
-                        for batch in lap_batches
-                    ]
-
-                    for future in as_completed(futures):
-                        future.result()
-            else:
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = [
-                        executor.submit(
-                            self.process_lap,
-                            session_number,
-                            driver,
-                            lap_number,
-                            driver_dir,
-                            f1session,
-                            driver_laps,
-                        )
-                        for lap_number in lap_numbers
-                    ]
-
-                    for future in as_completed(futures):
-                        future.result()
+            self.process_lap_batch(
+                session_number, driver, lap_numbers, driver_dir, f1session
+            )
 
         except Exception as e:
             logger.error(f"Error processing driver {driver}: {str(e)}")
@@ -695,9 +528,7 @@ class PreSeasonTelemetryExtractor:
         session_name = self.session_name_map.get(
             session_number, f"Session{session_number}"
         )
-        logger.info(
-            f"Processing Pre-Season Testing - {session_name} {'with joblib' if self.use_joblib else 'without joblib'}"
-        )
+        logger.info(f"Processing Pre-Season Testing - {session_name}")
 
         base_dir = f"Pre-Season Testing/{session_name}"
         os.makedirs(base_dir, exist_ok=True)
@@ -706,73 +537,43 @@ class PreSeasonTelemetryExtractor:
             f1session = self.get_testing_session(session_number, load_telemetry=True)
 
             drivers_info = self.session_drivers(session_number)
-            with open(f"{base_dir}/drivers.json", "w") as json_file:
-                json.dump(drivers_info, json_file)
+            with open(f"{base_dir}/drivers.json", "wb") as json_file:
+                json_file.write(orjson.dumps(drivers_info))
 
             corner_info = self.get_circuit_info(session_number)
             if corner_info:
-                with open(f"{base_dir}/corners.json", "w") as json_file:
-                    json.dump(corner_info, json_file)
+                with open(f"{base_dir}/corners.json", "wb") as json_file:
+                    json_file.write(orjson.dumps(corner_info))
 
             drivers = self.session_drivers_list(session_number)
 
-            with ThreadPoolExecutor(max_workers=8) as executor:
-                futures = [
-                    executor.submit(
-                        self.process_driver, session_number, driver, base_dir, f1session
-                    )
-                    for driver in drivers
-                ]
-
-                for future in as_completed(futures):
-                    future.result()
+            for driver in drivers:
+                self.process_driver(session_number, driver, base_dir, f1session)
 
         except Exception as e:
             logger.error(f"Error processing testing session {session_number}: {str(e)}")
 
-    def process_all_data(self, max_workers: int = 4) -> None:
-        """Process all configured testing sessions."""
-        logger.info(
-            f"Starting {'joblib-optimized' if self.use_joblib else 'standard'} pre-season testing extraction for {self.year}"
-        )
+    def process_all_data(self) -> None:
+        """Process all configured testing sessions sequentially (optimal for GHA 2-core)."""
+        logger.info(f"Starting pre-season testing extraction for {self.year}")
         logger.info(
             f"Test number: {self.test_number}, Sessions: {self.session_numbers}"
         )
 
-        if self.use_joblib:
-            logger.info(
-                f"Joblib settings: n_jobs={self.n_jobs}, batch_size={self.batch_size}"
-            )
-
         start_time = time.time()
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
-            for session_number in self.session_numbers:
-                futures.append(
-                    executor.submit(self.process_testing_session, session_number)
-                )
-
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"Error in processing task: {str(e)}")
+        for session_number in self.session_numbers:
+            try:
+                self.process_testing_session(session_number)
+                gc.collect()
+            except Exception as e:
+                logger.error(f"Error processing session {session_number}: {str(e)}")
 
         elapsed_time = time.time() - start_time
         logger.info(
             f"Pre-season testing extraction completed in {elapsed_time:.2f} seconds"
         )
-        
-        from joblib.externals.loky import get_reusable_executor
-        get_reusable_executor().shutdown(wait=True)
         gc.collect()
-
-    def clear_joblib_cache(self):
-        """Clear the joblib memory cache."""
-        if hasattr(memory, "clear"):
-            memory.clear()
-            logger.info("Joblib cache cleared")
 
 
 def check_memory_usage(threshold_percent=80):
@@ -791,11 +592,6 @@ def check_memory_usage(threshold_percent=80):
         )
         SESSION_CACHE.clear()
         CIRCUIT_INFO_CACHE.clear()
-
-        if hasattr(memory, "clear"):
-            memory.clear()
-            logger.info("Joblib cache cleared")
-
         gc.collect()
 
         new_memory_percent = psutil.Process(os.getpid()).memory_percent()
@@ -848,21 +644,11 @@ def is_data_available(year, test_number, session_numbers):
 def main():
     """Main entry point for the pre-season testing extraction script."""
     try:
-        use_joblib = True
-        n_jobs = -1
-        batch_size = 8
-
         extractor = PreSeasonTelemetryExtractor(
             year=2025,
             test_number=1,
-            session_numbers=[1, 2, 3],
-            use_joblib=use_joblib,
-            n_jobs=n_jobs,
-            batch_size=batch_size,
+            session_numbers=[1],
         )
-
-        is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-        max_workers = 12 if is_github_actions else 8
 
         wait_time = 30
         max_attempts = 720
@@ -877,7 +663,7 @@ def main():
                 logger.info(
                     f"Data is available for {extractor.year} pre-season testing. Starting extraction..."
                 )
-                extractor.process_all_data(max_workers=max_workers)
+                extractor.process_all_data()
                 break
             else:
                 attempt += 1
@@ -885,7 +671,6 @@ def main():
                     f"Data not yet available. Waiting {wait_time} seconds before retry ({attempt}/{max_attempts})..."
                 )
                 time.sleep(wait_time)
-
                 check_memory_usage()
 
         if attempt >= max_attempts:
