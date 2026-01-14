@@ -521,7 +521,7 @@ class PreSeasonTelemetryExtractor:
             )
 
         if self.use_joblib and len(lap_numbers) > 1:
-            results = Parallel(n_jobs=self.n_jobs, backend="loky", prefer="processes")(
+            results = Parallel(n_jobs=self.n_jobs, backend="threading")(
                 delayed(process_single_lap_job)(lap_num) for lap_num in lap_numbers
             )
         else:
@@ -763,6 +763,10 @@ class PreSeasonTelemetryExtractor:
         logger.info(
             f"Pre-season testing extraction completed in {elapsed_time:.2f} seconds"
         )
+        
+        from joblib.externals.loky import get_reusable_executor
+        get_reusable_executor().shutdown(wait=True)
+        gc.collect()
 
     def clear_joblib_cache(self):
         """Clear the joblib memory cache."""
