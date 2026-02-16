@@ -33,7 +33,7 @@ TARGET_EVENT_NAMES_LIST = [
     
     # "Australian Grand Prix",
     # "Chinese Grand Prix",
-    "Japanese Grand Prix",
+    # "Japanese Grand Prix",
     # "Bahrain Grand Prix",
     # "Saudi Arabian Grand Prix",
     # "Miami Grand Prix",
@@ -41,7 +41,7 @@ TARGET_EVENT_NAMES_LIST = [
     # "Monaco Grand Prix",
     # "Spanish Grand Prix",
     # "Canadian Grand Prix",
-    # "Austrian Grand Prix",
+    "Austrian Grand Prix",
     # "British Grand Prix",
     # "Belgian Grand Prix",
     # "Hungarian Grand Prix",
