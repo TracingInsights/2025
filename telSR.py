@@ -1,583 +1,749 @@
-import json
+"""
+Season Session Telemetry Extraction Script
+==========================================
+Extracts telemetry data from non-testing F1 season sessions.
+
+Output directory:
+{year}/{event_name}/{session_name}/
+
+Standalone cache:
+cache_session
+"""
+
+import gc
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import fastf1
 import numpy as np
+import orjson
 import pandas as pd
+import psutil
 import requests
-from joblib import Memory, Parallel, delayed
 
-import utils
+# ---------------------------------------------------------------------------
+# Constants & Configuration
+# ---------------------------------------------------------------------------
 
-# Configure logging
+DEFAULT_YEAR = 2025
+# Keep exactly one uncommented event in this list.
+TARGET_EVENT_NAMES_LIST = [
+    
+    # "Australian Grand Prix",
+    # "Chinese Grand Prix",
+    # "Japanese Grand Prix",
+    # "Bahrain Grand Prix",
+    # "Saudi Arabian Grand Prix",
+    # "Miami Grand Prix",
+    # "Emilia Romagna Grand Prix",
+    # "Monaco Grand Prix",
+    "Spanish Grand Prix",
+    # "Canadian Grand Prix",
+    # "Austrian Grand Prix",
+    # "British Grand Prix",
+    # "Belgian Grand Prix",
+    # "Hungarian Grand Prix",
+    # "Dutch Grand Prix",
+    # "Italian Grand Prix",
+    # "Azerbaijan Grand Prix",
+    # "Singapore Grand Prix",
+    # "United States Grand Prix",
+    # "Mexico City Grand Prix",
+    # "São Paulo Grand Prix",
+    # "Las Vegas Grand Prix",
+    # "Qatar Grand Prix",
+    # "Abu Dhabi Grand Prix",
+]
+if len(TARGET_EVENT_NAMES_LIST) != 1:
+    raise ValueError(
+        "Set exactly one active event in TARGET_EVENT_NAME "
+        "(comment all others)."
+    )
+TARGET_EVENT_NAME = TARGET_EVENT_NAMES_LIST[0]
+AVAILABLE_SESSIONS = [
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Qualifying",
+    "Sprint Qualifying",
+    "Sprint",
+    "Race",
+]
+# Select one or more sessions from AVAILABLE_SESSIONS.
+TARGET_SESSIONS = [
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Qualifying",
+    # "Sprint Qualifying",
+    # "Sprint",
+    "Race",
+]
+invalid_target_sessions = sorted(set(TARGET_SESSIONS) - set(AVAILABLE_SESSIONS))
+if invalid_target_sessions:
+    raise ValueError(
+        "Invalid TARGET_SESSIONS value(s): "
+        + ", ".join(invalid_target_sessions)
+    )
+PROTO = "https"
+HOST = "api.multiviewer.app"
+HEADERS = {"User-Agent": "FastF1/"}
+ORJSON_OPTS = orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_NON_STR_KEYS
+EPS = np.finfo(float).eps
+
+# Pre-allocated smoothing kernels
+_KERNEL_3 = np.ones(3, dtype=np.float64) / 3.0
+_KERNEL_9 = np.ones(9, dtype=np.float64) / 9.0
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("telemetry_extraction.log"), logging.StreamHandler()],
+    handlers=[
+        logging.FileHandler("session_extraction.log"),
+        logging.StreamHandler(),
+    ],
 )
-logger = logging.getLogger("telemetry_extractor")
+logger = logging.getLogger("session_extractor")
 logging.getLogger("fastf1").setLevel(logging.WARNING)
 logging.getLogger("fastf1").propagate = False
 
-# Enable caching
-fastf1.Cache.enable_cache("cache")
-
-DEFAULT_YEAR = 2025
-PROTO = "https"
-HOST = "api.multiviewer.app"
-HEADERS = {"User-Agent": f"FastF1/"}
-
-# Global cache for session objects to prevent reloading
-SESSION_CACHE = {}
-CIRCUIT_INFO_CACHE = {}
-
-# Initialize joblib memory for persistent caching
-memory = Memory(location='./cache_joblib', verbose=0)
+_MISSING_TEXT_VALUES = frozenset({
+    "",
+    "null",
+    "nan",
+    "nat",
+    "none",
+    "inf",
+    "-inf",
+    "infinity",
+    "-infinity",
+})
+_MISSING_TEXT_LIST = list(_MISSING_TEXT_VALUES)
 
 
-class TelemetryExtractor:
-    """Optimized class to handle extraction of F1 telemetry data with joblib improvements."""
+# ---------------------------------------------------------------------------
+# Helper Functions (Copied from main_optimized.py for standalone execution)
+# ---------------------------------------------------------------------------
+def _write_json(path: str, obj, normalize_missing: bool = False) -> None:
+    if normalize_missing:
+        obj = _normalize_missing_for_json(obj)
+    with open(path, "wb") as f:
+        f.write(orjson.dumps(obj, option=ORJSON_OPTS))
 
-    def __init__(
-        self,
-        year: int = DEFAULT_YEAR,
-        events: List[str] = None,
-        sessions: List[str] = None,
-        use_joblib: bool = True,
-        n_jobs: int = -1,
-        batch_size: int = 8,
-    ):
-        """Initialize the TelemetryExtractor."""
+
+def _td_col_to_seconds(series: pd.Series) -> list:
+    if series.empty:
+        return []
+    seconds = series.dt.total_seconds().to_numpy()
+    mask = series.isna().to_numpy()
+    out = np.round(seconds, 3).astype(object)
+    out[mask] = "None"
+    return out.tolist()
+
+
+def _col_to_list_str_or_none(col) -> list:
+    if isinstance(col, np.ndarray):
+        vals = col
+    else:
+        if col.empty:
+            return []
+        vals = col.to_numpy()
+    if len(vals) == 0:
+        return []
+    mask = pd.isna(vals)
+    valid = ~mask
+    out = np.empty(vals.shape, dtype=object)
+    out[mask] = "None"
+    valid_vals = vals[valid]
+    s_vals = np.array([str(v).strip().lower() for v in valid_vals])
+    missing_mask = np.isin(s_vals, _MISSING_TEXT_LIST)
+    str_vals = np.array([str(v) for v in valid_vals])
+    out[valid] = np.where(missing_mask, "None", str_vals)
+    return out.tolist()
+
+
+def _col_to_list_int_or_none(series: pd.Series) -> list:
+    if series.empty:
+        return []
+    vals = series.to_numpy()
+    mask = pd.isna(vals)
+    out = np.empty(vals.shape, dtype=object)
+    out[mask] = "None"
+    out[~mask] = vals[~mask].astype(int)
+    return out.tolist()
+
+
+def _col_to_list_bool_or_none(series: pd.Series) -> list:
+    if series.empty:
+        return []
+    vals = series.to_numpy()
+    mask = pd.isna(vals)
+    out = np.empty(vals.shape, dtype=object)
+    out[mask] = "None"
+    out[~mask] = vals[~mask].astype(bool)
+    return out.tolist()
+
+
+def _series_to_json_list(series: pd.Series) -> list:
+    if series.empty:
+        return []
+
+    if pd.api.types.is_timedelta64_dtype(series.dtype):
+        return _td_col_to_seconds(series)
+
+    vals = series.to_numpy()
+    if pd.api.types.is_float_dtype(series.dtype):
+        vals_f = vals.astype(np.float64, copy=False)
+        mask = ~np.isfinite(vals_f)
+    else:
+        mask = pd.isna(vals)
+    out = np.empty(vals.shape, dtype=object)
+    out[mask] = "None"
+
+    valid = ~mask
+    if not valid.any():
+        return out.tolist()
+
+    if pd.api.types.is_bool_dtype(series.dtype):
+        out[valid] = vals[valid].astype(bool)
+    elif pd.api.types.is_integer_dtype(series.dtype):
+        out[valid] = vals[valid].astype(int)
+    elif pd.api.types.is_float_dtype(series.dtype):
+        out[valid] = vals[valid].astype(float)
+    else:
+        valid_vals = vals[valid]
+        s_vals = np.array([str(v).strip().lower() for v in valid_vals])
+        missing_mask = np.isin(s_vals, _MISSING_TEXT_LIST)
+        str_vals = np.array([str(v) for v in valid_vals])
+        out[valid] = np.where(missing_mask, "None", str_vals)
+
+    return out.tolist()
+
+
+def _scalar_to_json_primitive_or_none(value):
+    if isinstance(value, (float, np.floating)):
+        return "None" if not np.isfinite(value) else float(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, str):
+        return "None" if value.strip().lower() in _MISSING_TEXT_VALUES else value
+    if pd.isna(value):
+        return "None"
+    return value
+
+
+def _normalize_missing_for_json(value):
+    if isinstance(value, dict):
+        return {k: _normalize_missing_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_normalize_missing_for_json(v) for v in value]
+    if isinstance(value, tuple):
+        return [_normalize_missing_for_json(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return [_normalize_missing_for_json(v) for v in value.tolist()]
+    return _scalar_to_json_primitive_or_none(value)
+
+
+def _dataframe_to_column_lists(df: pd.DataFrame) -> Dict[str, list]:
+    if df is None or df.empty:
+        return {}
+    return {col: _series_to_json_list(df[col]) for col in df.columns}
+
+
+_LAP_WEATHER_COL_MAP = (
+    ("wT", "Time"),
+    ("wAT", "AirTemp"),
+    ("wH", "Humidity"),
+    ("wP", "Pressure"),
+    ("wR", "Rainfall"),
+    ("wTT", "TrackTemp"),
+    ("wWD", "WindDirection"),
+    ("wWS", "WindSpeed"),
+)
+LAP_WEATHER_KEYS = tuple(k for k, _ in _LAP_WEATHER_COL_MAP)
+
+_RCM_COL_MAP = (
+    ("time", "Time"),
+    ("cat", "Category"),
+    ("msg", "Message"),
+    ("status", "Status"),
+    ("flag", "Flag"),
+    ("scope", "Scope"),
+    ("sector", "Sector"),
+    ("dNum", "RacingNumber"),
+    ("lap", "Lap"),
+)
+
+
+def _session_weather_to_column_lists(weather_df: pd.DataFrame) -> Dict[str, list]:
+    if weather_df is None or weather_df.empty:
+        return {}
+
+    out: Dict[str, list] = {}
+    for short_key, weather_col in _LAP_WEATHER_COL_MAP:
+        if weather_col in weather_df.columns:
+            out[short_key] = _series_to_json_list(weather_df[weather_col])
+    return out
+
+
+def _session_rcm_to_column_lists(rcm_df: pd.DataFrame) -> Dict[str, list]:
+    if rcm_df is None or rcm_df.empty:
+        return {}
+
+    out: Dict[str, list] = {}
+    for short_key, rcm_col in _RCM_COL_MAP:
+        if rcm_col in rcm_df.columns:
+            out[short_key] = _series_to_json_list(rcm_df[rcm_col])
+    return out
+
+
+def _lap_weather_to_column_lists(laps: pd.DataFrame, weather_df: pd.DataFrame = None) -> Dict[str, list]:
+    n_laps = len(laps)
+    if n_laps == 0:
+        return {k: [] for k in LAP_WEATHER_KEYS}
+
+    none_row = ["None"] * n_laps
+    out = {k: none_row.copy() for k in LAP_WEATHER_KEYS}
+
+    if weather_df is None:
+        if not hasattr(laps, "get_weather_data"):
+            return out
+        try:
+            weather_df = laps.get_weather_data()
+        except Exception:
+            return out
+
+    if weather_df is None:
+        return out
+
+    for short_key, weather_col in _LAP_WEATHER_COL_MAP:
+        if weather_col not in weather_df.columns:
+            continue
+
+        values = _series_to_json_list(weather_df[weather_col])
+        if len(values) < n_laps:
+            values.extend(["None"] * (n_laps - len(values)))
+        elif len(values) > n_laps:
+            values = values[:n_laps]
+        out[short_key] = values
+
+    return out
+
+
+def _array_to_list_float_or_none(arr: np.ndarray) -> list:
+    if arr.size == 0:
+        return []
+    valid = np.isfinite(arr)
+    if valid.all():
+        return arr.tolist()
+    out = np.empty(arr.shape, dtype=object)
+    out[~valid] = "None"
+    out[valid] = arr[valid]
+    return out.tolist()
+
+
+def _array_to_list_int_or_none(arr: np.ndarray) -> list:
+    if arr.size == 0:
+        return []
+    mask = ~np.isfinite(arr)
+    if not mask.any():
+        return arr.astype(int).tolist()
+    out = np.empty(arr.shape, dtype=object)
+    out[mask] = "None"
+    out[~mask] = arr[~mask].astype(int)
+    return out.tolist()
+
+
+def _smooth_outliers(arr: np.ndarray, threshold: float, use_abs: bool) -> None:
+    if use_abs:
+        mask = np.abs(arr) > threshold
+    else:
+        mask = arr > threshold
+    if mask.any():
+        indices = np.where(mask)[0]
+        indices = indices[(indices >= 1) & (indices < len(arr) - 1)]
+        if len(indices) > 0:
+            arr[indices] = arr[indices - 1]
+
+
+def _compute_accelerations(
+    speed: np.ndarray,
+    time_arr: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    dist: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    # Convert speed km/h -> m/s as float64
+    vx = speed * (1.0 / 3.6)
+    if vx.dtype != np.float64:
+        vx = vx.astype(np.float64)
+    time_f = (time_arr / np.timedelta64(1, "s")).astype(np.float64)
+
+    # Ensure float64 only when needed
+    x_f = x if x.dtype == np.float64 else x.astype(np.float64)
+    y_f = y if y.dtype == np.float64 else y.astype(np.float64)
+    z_f = z if z.dtype == np.float64 else z.astype(np.float64)
+    dist_f = dist if dist.dtype == np.float64 else dist.astype(np.float64)
+
+    # --- X acceleration ---
+    dtime = np.gradient(time_f)
+    ax = np.gradient(vx) / dtime
+    _smooth_outliers(ax, 25.0, use_abs=False)
+    ax = np.convolve(ax, _KERNEL_3, mode="same")
+
+    # --- Shared gradient for Y and Z ---
+    dx = np.gradient(x_f)
+    ds = np.gradient(dist_f)
+
+    # --- Y acceleration ---
+    dy = np.gradient(y_f)
+    theta = np.arctan2(dy, dx + EPS)
+    theta[0] = theta[1]
+    dtheta = np.gradient(np.unwrap(theta))
+    _smooth_outliers(dtheta, 0.5, use_abs=True)
+    C = dtheta / (ds + 0.0001)
+    ay = np.square(vx) * C
+    ay[np.abs(ay) > 150] = 0
+    ay = np.convolve(ay, _KERNEL_9, mode="same")
+
+    # --- Z acceleration ---
+    dz = np.gradient(z_f)
+    z_theta = np.arctan2(dz, dx + EPS)
+    z_theta[0] = z_theta[1]
+    z_dtheta = np.gradient(np.unwrap(z_theta))
+    _smooth_outliers(z_dtheta, 0.5, use_abs=True)
+    z_C = z_dtheta / (ds + 0.0001)
+    az = np.square(vx) * z_C
+    az[np.abs(az) > 150] = 0
+    az = np.convolve(az, _KERNEL_9, mode="same")
+
+    return ax, ay, az, time_f
+
+
+def _process_telemetry_to_dict(telemetry: pd.DataFrame, data_key: str) -> dict:
+    time_arr = telemetry["Time"].to_numpy()
+    speed = telemetry["Speed"].to_numpy()
+    x = telemetry["X"].to_numpy()
+    y = telemetry["Y"].to_numpy()
+    z = telemetry["Z"].to_numpy()
+    dist = telemetry["Distance"].to_numpy()
+
+    ax, ay, az, time_s = _compute_accelerations(speed, time_arr, x, y, z, dist)
+
+    drs_raw = telemetry["DRS"].to_numpy()
+    drs = np.isin(drs_raw, [10, 12, 14]).astype(np.int8)
+    brake = telemetry["Brake"].to_numpy().astype(bool).astype(np.int8)
+    driver_ahead = (
+        telemetry["DriverAhead"]
+        if "DriverAhead" in telemetry.columns
+        else np.full(len(telemetry), np.nan)
+    )
+    distance_to_driver_ahead = (
+        telemetry["DistanceToDriverAhead"].to_numpy()
+        if "DistanceToDriverAhead" in telemetry.columns
+        else np.full(len(telemetry), np.nan, dtype=np.float64)
+    )
+
+    return {
+        "tel": {
+            "time": _array_to_list_float_or_none(time_s),
+            "rpm": _array_to_list_float_or_none(telemetry["RPM"].to_numpy()),
+            "speed": _array_to_list_float_or_none(speed),
+            "gear": _array_to_list_int_or_none(telemetry["nGear"].to_numpy()),
+            "throttle": _array_to_list_float_or_none(telemetry["Throttle"].to_numpy()),
+            "brake": _array_to_list_int_or_none(brake),
+            "drs": _array_to_list_int_or_none(drs),
+            "distance": _array_to_list_float_or_none(dist),
+            "rel_distance": _array_to_list_float_or_none(
+                telemetry["RelativeDistance"].to_numpy()
+                if "RelativeDistance" in telemetry.columns
+                else np.full(len(telemetry), np.nan, dtype=np.float64)
+            ),
+            "DriverAhead": _col_to_list_str_or_none(driver_ahead),
+            "DistanceToDriverAhead": _array_to_list_float_or_none(
+                distance_to_driver_ahead
+            ),
+            "acc_x": _array_to_list_float_or_none(ax),
+            "acc_y": _array_to_list_float_or_none(ay),
+            "acc_z": _array_to_list_float_or_none(az),
+            "x": _array_to_list_float_or_none(x),
+            "y": _array_to_list_float_or_none(y),
+            "z": _array_to_list_float_or_none(z),
+            "dataKey": data_key,
+        }
+    }
+
+
+def check_memory_usage(threshold_percent=80, session_cache=None, circuit_cache=None):
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    memory_percent = process.memory_percent()
+
+    logger.info(
+        f"Current memory usage: {memory_percent:.2f}% "
+        f"({memory_info.rss / 1024 / 1024:.2f} MB)"
+    )
+
+    if memory_percent > threshold_percent:
+        logger.warning(
+            f"Memory usage exceeds {threshold_percent}% threshold, clearing caches"
+        )
+        if session_cache is not None:
+            session_cache.clear()
+        if circuit_cache is not None:
+            circuit_cache.clear()
+        gc.collect()
+
+        new_pct = psutil.Process(os.getpid()).memory_percent()
+        logger.info(f"New memory usage after clearing caches: {new_pct:.2f}%")
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Season Session Extractor
+# ---------------------------------------------------------------------------
+class SeasonSessionExtractor:
+    """Extract telemetry from non-testing season sessions."""
+
+    def __init__(self, year: int = DEFAULT_YEAR):
         self.year = year
-        self.use_joblib = use_joblib
-        self.n_jobs = n_jobs  # -1 uses all available cores
-        self.batch_size = batch_size  # Laps per batch for joblib processing
-        
-        self.events = events or [
-            # "Pre-Season Testing",
-            # "Australian Grand Prix",
-            # "Chinese Grand Prix",
-            # "Japanese Grand Prix",
-            # "Bahrain Grand Prix",
-            # 'Saudi Arabian Grand Prix',
-            # "Miami Grand Prix",
-            # "Emilia Romagna Grand Prix",
-            # "Monaco Grand Prix",
-            # 'Spanish Grand Prix',
-            # "Canadian Grand Prix",
-            # "Austrian Grand Prix",
-            # "British Grand Prix",
-            # "Belgian Grand Prix",
-            # "Hungarian Grand Prix",
-            # "Dutch Grand Prix",
-            # 'Italian Grand Prix',
-            # 'Azerbaijan Grand Prix',
-            # 'Singapore Grand Prix',
-            # 'United States Grand Prix',
-            # 'Mexico City Grand Prix',
-            # 'São Paulo Grand Prix',
-            # 'Las Vegas Grand Prix',
-            'Qatar Grand Prix',
-            # 'Abu Dhabi Grand Prix',
-        ]
-        self.sessions = sessions or ["Sprint",]
+        self._session_cache: Dict[str, fastf1.core.Session] = {}
+        self._circuit_cache: Dict[str, dict] = {}
 
     def get_session(
-        self, event: Union[str, int], session: str, load_telemetry: bool = False
+        self, event_name: str, session_name: str, load_telemetry: bool = True
     ) -> fastf1.core.Session:
-        """Get a cached session object to prevent reloading."""
-        cache_key = f"{self.year}-{event}-{session}"
-        if cache_key not in SESSION_CACHE:
-            f1session = fastf1.get_session(self.year, event, session)
-            f1session.load(telemetry=load_telemetry, weather=True, messages=True)
-            SESSION_CACHE[cache_key] = f1session
-        return SESSION_CACHE[cache_key]
+        cache_key = f"{self.year}-{event_name}-{session_name}"
+        cached = self._session_cache.get(cache_key)
 
-    def session_drivers_list(self, event: Union[str, int], session: str) -> List[str]:
-        """Get list of driver codes for a given event and session."""
-        try:
-            f1session = self.get_session(event, session)
-            return list(f1session.laps["Driver"].unique())
-        except Exception as e:
-            logger.error(f"Error getting driver list for {event} {session}: {str(e)}")
-            return []
+        if cached is not None:
+            if load_telemetry and not getattr(cached, "_telemetry_loaded", False):
+                cached.load(telemetry=True, weather=True, messages=True)
+                cached._telemetry_loaded = True
+                self._session_cache[cache_key] = cached
+            return cached
+
+        f1session = fastf1.get_session(self.year, event_name, session_name)
+        f1session.load(telemetry=load_telemetry, weather=True, messages=True)
+        f1session._telemetry_loaded = load_telemetry
+        self._session_cache[cache_key] = f1session
+        return f1session
 
     def session_drivers(
-        self, event: Union[str, int], session: str
+        self, event_name: str, session_name: str, f1session: fastf1.core.Session = None
     ) -> Dict[str, List[Dict[str, str]]]:
-        """Get drivers available for a given event and session."""
         try:
-            f1session = self.get_session(event, session)
+            if f1session is None:
+                f1session = self.get_session(event_name, session_name)
             laps = f1session.laps
-            team_colors = utils.team_colors(self.year)
-            laps["color"] = laps["Team"].map(team_colors)
+            driver_cols = ["Driver", "Team"]
+            has_driver_number = "DriverNumber" in laps.columns
+            if has_driver_number:
+                driver_cols.append("DriverNumber")
+            driver_team = laps.drop_duplicates(subset="Driver")[driver_cols]
 
-            unique_drivers = laps["Driver"].unique()
+            results = f1session.results
+            result_by_abbr = {}
+            result_by_number = {}
+            if results is not None and not results.empty:
+                for row in results.itertuples():
+                    abbr = getattr(row, "Abbreviation", None)
+                    if pd.notna(abbr):
+                        result_by_abbr[str(abbr)] = row
+
+                    driver_number = getattr(row, "DriverNumber", None)
+                    if pd.notna(driver_number):
+                        result_by_number[str(driver_number)] = row
 
             drivers = [
-                {
-                    "driver": driver,
-                    "team": laps[laps.Driver == driver].Team.iloc[0],
-                }
-                for driver in unique_drivers
+                self._build_driver_info(
+                    row=row,
+                    has_driver_number=has_driver_number,
+                    result_by_abbr=result_by_abbr,
+                    result_by_number=result_by_number,
+                )
+                for row in driver_team.itertuples(index=False)
             ]
-
             return {"drivers": drivers}
         except Exception as e:
-            logger.error(f"Error getting drivers for {event} {session}: {str(e)}")
+            logger.error(
+                f"Error getting drivers for {event_name} {session_name}: {e}"
+            )
             return {"drivers": []}
 
-    def laps_data(
-        self, event: Union[str, int], session: str, driver: str, f1session=None
-    ) -> Dict[str, List]:
-        """Get lap data for a specific driver in a session."""
-        try:
-            if f1session is None:
-                f1session = self.get_session(event, session)
+    def _build_driver_info(
+        self,
+        row,
+        has_driver_number: bool,
+        result_by_abbr: Dict[str, object],
+        result_by_number: Dict[str, object],
+    ) -> Dict[str, str]:
+        driver = _scalar_to_json_primitive_or_none(row.Driver)
+        team = _scalar_to_json_primitive_or_none(row.Team)
+        driver_number = _scalar_to_json_primitive_or_none(
+            row.DriverNumber if has_driver_number else "None"
+        )
 
-            laps = f1session.laps
-            driver_laps = laps.pick_drivers(driver).copy()
+        result_row = result_by_abbr.get(str(driver))
+        if result_row is None and driver_number != "None":
+            result_row = result_by_number.get(str(driver_number))
 
-            # Helper function to convert timedelta to seconds
-            def timedelta_to_seconds(time_value):
-                if pd.isna(time_value) or not hasattr(time_value, "total_seconds"):
-                    return "None"
-                return round(time_value.total_seconds(), 3)
+        first_name = "None"
+        last_name = "None"
+        team_color = "None"
+        headshot_url = "None"
 
-            # Convert lap times to seconds and handle NaN values
-            lap_times = [
-                timedelta_to_seconds(lap_time) for lap_time in driver_laps["LapTime"]
-            ]
-
-            # Convert sector times to seconds
-            sector1_times = [
-                timedelta_to_seconds(s1_time) for s1_time in driver_laps["Sector1Time"]
-            ]
-            sector2_times = [
-                timedelta_to_seconds(s2_time) for s2_time in driver_laps["Sector2Time"]
-            ]
-            sector3_times = [
-                timedelta_to_seconds(s3_time) for s3_time in driver_laps["Sector3Time"]
-            ]
-
-            # Handle NaN values in compounds
-            compounds = []
-            for compound in driver_laps["Compound"]:
-                if pd.isna(compound):
-                    compounds.append("None")
-                else:
-                    compounds.append(compound)
-
-            # Handle stint information
-            stints = []
-            for stint in driver_laps["Stint"]:
-                if pd.isna(stint):
-                    stints.append("None")
-                else:
-                    stints.append(int(stint))
-
-            # Handle TyreLife
-            tyre_life = []
-            for life in driver_laps["TyreLife"]:
-                if pd.isna(life):
-                    tyre_life.append("None")
-                else:
-                    tyre_life.append(int(life))
-
-            # Handle Position
-            positions = []
-            for pos in driver_laps["Position"]:
-                if pd.isna(pos):
-                    positions.append("None")
-                else:
-                    positions.append(int(pos))
-
-            # Handle TrackStatus
-            track_status = []
-            for status in driver_laps["TrackStatus"]:
-                if pd.isna(status):
-                    track_status.append("None")
-                else:
-                    track_status.append(str(status))
-
-            # Handle IsPersonalBest
-            is_personal_best = []
-            for is_pb in driver_laps["IsPersonalBest"]:
-                if pd.isna(is_pb):
-                    is_personal_best.append("None")
-                else:
-                    is_personal_best.append(bool(is_pb))
-
-            return {
-                "time": lap_times,
-                "lap": driver_laps["LapNumber"].tolist(),
-                "compound": compounds,
-                "stint": stints,
-                "s1": sector1_times,
-                "s2": sector2_times,
-                "s3": sector3_times,
-                "life": tyre_life,
-                "pos": positions,
-                "status": track_status,
-                "pb": is_personal_best,
-            }
-        except Exception as e:
-            logger.error(
-                f"Error getting lap data for {driver} in {event} {session}: {str(e)}"
+        if result_row is not None:
+            first_name = _scalar_to_json_primitive_or_none(
+                getattr(result_row, "FirstName", "None")
             )
-            return {
-                "time": [],
-                "lap": [],
-                "compound": [],
-                "stint": [],
-                "s1": [],
-                "s2": [],
-                "s3": [],
-                "life": [],
-                "pos": [],
-                "status": [],
-                "pb": [],
-            }
-
-    @staticmethod
-    @memory.cache
-    def calculate_x_acceleration(vx_array, time_array, Nax):
-        """Calculate and smooth X-acceleration component using joblib caching."""
-        dtime = np.gradient(time_array)
-        ax = np.gradient(vx_array) / dtime
-
-        # Clean up outliers
-        for i in np.arange(1, len(ax) - 1).astype(int):
-            if ax[i] > 25:
-                ax[i] = ax[i - 1]
-
-        # Smooth x-acceleration
-        ax_smooth = np.convolve(ax, np.ones((Nax,)) / Nax, mode="same")
-        return ax_smooth
-
-    @staticmethod
-    @memory.cache
-    def calculate_y_acceleration(vx_array, x_array, y_array, dist_array, Nay):
-        """Calculate and smooth Y-acceleration component using joblib caching."""
-        # Calculate gradients
-        dx = np.gradient(x_array)
-        dy = np.gradient(y_array)
-
-        # Calculate theta (angle in xy-plane)
-        theta = np.arctan2(dy, (dx + np.finfo(float).eps))
-        theta[0] = theta[1]
-        theta_noDiscont = np.unwrap(theta)
-
-        # Calculate distance and curvature
-        ds = np.gradient(dist_array)
-        dtheta = np.gradient(theta_noDiscont)
-
-        # Clean up outliers
-        for i in np.arange(1, len(dtheta) - 1).astype(int):
-            if abs(dtheta[i]) > 0.5:
-                dtheta[i] = dtheta[i - 1]
-
-        # Calculate curvature and lateral acceleration
-        C = dtheta / (ds + 0.0001)  # To avoid division by 0
-        ay = np.square(vx_array) * C
-
-        # Remove extreme values
-        indexProblems = np.abs(ay) > 150
-        ay[indexProblems] = 0
-
-        # Smooth y-acceleration
-        ay_smooth = np.convolve(ay, np.ones((Nay,)) / Nay, mode="same")
-        return ay_smooth
-
-    @staticmethod
-    @memory.cache
-    def calculate_z_acceleration(vx_array, x_array, z_array, dist_array, Naz):
-        """Calculate and smooth Z-acceleration component using joblib caching."""
-        # Calculate gradients
-        dx = np.gradient(x_array)
-        dz = np.gradient(z_array)
-
-        # Calculate z_theta
-        z_theta = np.arctan2(dz, (dx + np.finfo(float).eps))
-        z_theta[0] = z_theta[1]
-        z_theta_noDiscont = np.unwrap(z_theta)
-
-        ds = np.gradient(dist_array)
-        z_dtheta = np.gradient(z_theta_noDiscont)
-
-        # Clean up outliers
-        for i in np.arange(1, len(z_dtheta) - 1).astype(int):
-            if abs(z_dtheta[i]) > 0.5:
-                z_dtheta[i] = z_dtheta[i - 1]
-
-        # Calculate z-curvature and vertical acceleration
-        z_C = z_dtheta / (ds + 0.0001)
-        az = np.square(vx_array) * z_C
-
-        # Remove extreme values
-        indexProblems = np.abs(az) > 150
-        az[indexProblems] = 0
-
-        # Smooth z-acceleration
-        az_smooth = np.convolve(az, np.ones((Naz,)) / Naz, mode="same")
-        return az_smooth
-
-    def accCalc(
-        self, telemetry: pd.DataFrame, Nax: int, Nay: int, Naz: int
-    ) -> pd.DataFrame:
-        """Calculate acceleration components from telemetry data with joblib parallelization."""
-        # Convert speed from km/h to m/s
-        vx = telemetry["Speed"] / 3.6
-        time_float = telemetry["Time"] / np.timedelta64(1, "s")
-
-        # Extract arrays for calculations
-        vx_array = vx.values
-        time_array = time_float.values
-        x_array = telemetry["X"].values
-        y_array = telemetry["Y"].values
-        z_array = telemetry["Z"].values
-        dist_array = telemetry["Distance"].values
-
-        if self.use_joblib and len(telemetry) > 100:  # Use joblib for larger datasets
-            # Parallel calculation of all three acceleration components
-            results = Parallel(n_jobs=min(3, self.n_jobs if self.n_jobs > 0 else 3), backend='threading')(
-                [
-                    delayed(self.calculate_x_acceleration)(vx_array, time_array, Nax),
-                    delayed(self.calculate_y_acceleration)(vx_array, x_array, y_array, dist_array, Nay),
-                    delayed(self.calculate_z_acceleration)(vx_array, x_array, z_array, dist_array, Naz)
-                ]
+            last_name = _scalar_to_json_primitive_or_none(
+                getattr(result_row, "LastName", "None")
             )
-            
-            ax_smooth, ay_smooth, az_smooth = results
-        else:
-            # Fall back to original sequential calculation for small datasets
-            ax_smooth = self.calculate_x_acceleration(vx_array, time_array, Nax)
-            ay_smooth = self.calculate_y_acceleration(vx_array, x_array, y_array, dist_array, Nay)
-            az_smooth = self.calculate_z_acceleration(vx_array, x_array, z_array, dist_array, Naz)
+            team_color = _scalar_to_json_primitive_or_none(
+                getattr(result_row, "TeamColor", "None")
+            )
+            headshot_url = _scalar_to_json_primitive_or_none(
+                getattr(
+                    result_row,
+                    "HeadshotUrl",
+                    getattr(result_row, "HeadShotUrl", "None"),
+                )
+            )
 
-        # Add acceleration columns to telemetry
-        telemetry = telemetry.copy()  # Ensure we don't modify the original
-        telemetry["Ax"] = ax_smooth
-        telemetry["Ay"] = ay_smooth
-        telemetry["Az"] = az_smooth
-
-        return telemetry
-
-    @staticmethod
-    @memory.cache
-    def cached_telemetry_processing(
-        time_array, rpm_array, speed_array, gear_array, throttle_array,
-        brake_array, drs_array, distance_array, rel_distance_array,
-        x_array, y_array, z_array, ax_array, ay_array, az_array, data_key
-    ):
-        """Cache the final telemetry data structure to avoid recomputation."""
         return {
-            "tel": {
-                "time": time_array.tolist() if hasattr(time_array, 'tolist') else time_array,
-                "rpm": rpm_array.tolist() if hasattr(rpm_array, 'tolist') else rpm_array,
-                "speed": speed_array.tolist() if hasattr(speed_array, 'tolist') else speed_array,
-                "gear": gear_array.tolist() if hasattr(gear_array, 'tolist') else gear_array,
-                "throttle": throttle_array.tolist() if hasattr(throttle_array, 'tolist') else throttle_array,
-                "brake": brake_array.tolist() if hasattr(brake_array, 'tolist') else brake_array,
-                "drs": drs_array.tolist() if hasattr(drs_array, 'tolist') else drs_array,
-                "distance": distance_array.tolist() if hasattr(distance_array, 'tolist') else distance_array,
-                "rel_distance": rel_distance_array.tolist() if hasattr(rel_distance_array, 'tolist') else rel_distance_array,
-                "acc_x": ax_array.tolist() if hasattr(ax_array, 'tolist') else ax_array,
-                "acc_y": ay_array.tolist() if hasattr(ay_array, 'tolist') else ay_array,
-                "acc_z": az_array.tolist() if hasattr(az_array, 'tolist') else az_array,
-                "x": x_array.tolist() if hasattr(x_array, 'tolist') else x_array,
-                "y": y_array.tolist() if hasattr(y_array, 'tolist') else y_array,
-                "z": z_array.tolist() if hasattr(z_array, 'tolist') else z_array,
-                "dataKey": data_key,
-            }
+            "driver": driver,
+            "team": team,
+            "dn": driver_number,
+            "fn": first_name,
+            "ln": last_name,
+            "tc": team_color,
+            "url": headshot_url,
         }
 
-    def process_single_lap_telemetry_direct(self, telemetry: pd.DataFrame, data_key: str) -> Dict:
-        """Process telemetry for a single lap directly without caching issues."""
-        # Calculate accelerations
-        acc_tel = self.accCalc(telemetry, 3, 9, 9)
-        acc_tel["Time"] = acc_tel["Time"].dt.total_seconds()
+    def laps_data(
+        self,
+        driver: str,
+        f1session: fastf1.core.Session,
+        driver_laps: pd.DataFrame = None,
+        session_weather_df: pd.DataFrame = None,
+    ) -> Dict[str, list]:
+        try:
+            if driver_laps is None:
+                driver_laps = f1session.laps.pick_drivers(driver)
 
-        # Convert DRS and Brake to binary values
-        acc_tel["DRS"] = acc_tel["DRS"].apply(
-            lambda x: 1 if x in [10, 12, 14] else 0
-        )
-        acc_tel["Brake"] = acc_tel["Brake"].apply(lambda x: 1 if x == True else 0)
+            lap_weather = _lap_weather_to_column_lists(driver_laps, session_weather_df)
 
-        # Use cached telemetry processing if joblib is enabled
-        if self.use_joblib:
-            return self.cached_telemetry_processing(
-                acc_tel["Time"].values,
-                acc_tel["RPM"].values,
-                acc_tel["Speed"].values,
-                acc_tel["nGear"].values,
-                acc_tel["Throttle"].values,
-                acc_tel["Brake"].values,
-                acc_tel["DRS"].values,
-                acc_tel["Distance"].values,
-                acc_tel["RelativeDistance"].values,
-                acc_tel["X"].values,
-                acc_tel["Y"].values,
-                acc_tel["Z"].values,
-                acc_tel["Ax"].values,
-                acc_tel["Ay"].values,
-                acc_tel["Az"].values,
-                data_key
-            )
-        else:
-            # Non-cached version
             return {
-                "tel": {
-                    "time": acc_tel["Time"].tolist(),
-                    "rpm": acc_tel["RPM"].tolist(),
-                    "speed": acc_tel["Speed"].tolist(),
-                    "gear": acc_tel["nGear"].tolist(),
-                    "throttle": acc_tel["Throttle"].tolist(),
-                    "brake": acc_tel["Brake"].tolist(),
-                    "drs": acc_tel["DRS"].tolist(),
-                    "distance": acc_tel["Distance"].tolist(),
-                    "rel_distance": acc_tel["RelativeDistance"].tolist(),
-                    "acc_x": acc_tel["Ax"].tolist(),
-                    "acc_y": acc_tel["Ay"].tolist(),
-                    "acc_z": acc_tel["Az"].tolist(),
-                    "x": acc_tel["X"].tolist(),
-                    "y": acc_tel["Y"].tolist(),
-                    "z": acc_tel["Z"].tolist(),
-                    "dataKey": data_key,
-                }
+                "time": _td_col_to_seconds(driver_laps["LapTime"]),
+                "lap": _col_to_list_int_or_none(driver_laps["LapNumber"]),
+                "compound": _col_to_list_str_or_none(driver_laps["Compound"]),
+                "stint": _col_to_list_int_or_none(driver_laps["Stint"]),
+                "s1": _td_col_to_seconds(driver_laps["Sector1Time"]),
+                "s2": _td_col_to_seconds(driver_laps["Sector2Time"]),
+                "s3": _td_col_to_seconds(driver_laps["Sector3Time"]),
+                "life": _col_to_list_int_or_none(driver_laps["TyreLife"]),
+                "pos": _col_to_list_int_or_none(driver_laps["Position"]),
+                "status": _col_to_list_str_or_none(driver_laps["TrackStatus"]),
+                "pb": _col_to_list_bool_or_none(driver_laps["IsPersonalBest"]),
+                "sesT": _td_col_to_seconds(driver_laps["Time"]),
+                "drv": _col_to_list_str_or_none(driver_laps["Driver"]),
+                "dNum": _col_to_list_str_or_none(driver_laps["DriverNumber"]),
+                "pout": _td_col_to_seconds(driver_laps["PitOutTime"]),
+                "pin": _td_col_to_seconds(driver_laps["PitInTime"]),
+                "s1T": _td_col_to_seconds(driver_laps["Sector1SessionTime"]),
+                "s2T": _td_col_to_seconds(driver_laps["Sector2SessionTime"]),
+                "s3T": _td_col_to_seconds(driver_laps["Sector3SessionTime"]),
+                "vi1": _array_to_list_float_or_none(driver_laps["SpeedI1"].to_numpy()),
+                "vi2": _array_to_list_float_or_none(driver_laps["SpeedI2"].to_numpy()),
+                "vfl": _array_to_list_float_or_none(driver_laps["SpeedFL"].to_numpy()),
+                "vst": _array_to_list_float_or_none(driver_laps["SpeedST"].to_numpy()),
+                "fresh": _col_to_list_bool_or_none(driver_laps["FreshTyre"]),
+                "team": _col_to_list_str_or_none(driver_laps["Team"]),
+                "lST": _td_col_to_seconds(driver_laps["LapStartTime"]),
+                "lSD": _col_to_list_str_or_none(driver_laps["LapStartDate"]),
+                "del": _col_to_list_bool_or_none(driver_laps["Deleted"]),
+                "delR": _col_to_list_str_or_none(driver_laps["DeletedReason"]),
+                "ff1G": _col_to_list_bool_or_none(driver_laps["FastF1Generated"]),
+                "iacc": _col_to_list_bool_or_none(driver_laps["IsAccurate"]),
+                **lap_weather,
+            }
+        except Exception as e:
+            logger.error(f"Error getting lap data for {driver}: {e}")
+            return {
+                k: []
+                for k in (
+                    "time", "lap", "compound", "stint",
+                    "s1", "s2", "s3", "life", "pos", "status", "pb",
+                    "sesT", "drv", "dNum", "pout", "pin",
+                    "s1T", "s2T", "s3T", "vi1", "vi2",
+                    "vfl", "vst", "fresh", "team", "lST",
+                    "lSD", "del", "delR", "ff1G", "iacc",
+                    *LAP_WEATHER_KEYS,
+                )
             }
 
-    def process_lap(
-        self,
-        event: str,
-        session: str,
-        driver: str,
-        lap_number: int,
-        driver_dir: str,
-        f1session=None,
-        driver_laps=None,
-    ) -> bool:
-        """Process a single lap for a driver."""        
-        file_path = f"{driver_dir}/{lap_number}_tel.json"
-
-        # Skip if file already exists
-        if os.path.exists(file_path):
-            return True
+    def get_circuit_info(
+        self, event_name: str, session_name: str
+    ) -> Optional[Dict]:
+        cache_key = f"{self.year}-{event_name}-{session_name}"
+        if cache_key in self._circuit_cache:
+            return self._circuit_cache[cache_key]
 
         try:
-            if f1session is None:
-                f1session = self.get_session(event, session, load_telemetry=True)
-
-            if driver_laps is None:
-                laps = f1session.laps
-                driver_laps = laps.pick_drivers(driver).copy()
-                # Create a new column for lap times in seconds to avoid dtype conflicts
-                driver_laps["LapTimeSeconds"] = driver_laps["LapTime"].apply(
-                    lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
-                )
-
-            # Get the telemetry for lap_number
-            selected_lap = driver_laps[driver_laps.LapNumber == lap_number]
-
-            if selected_lap.empty:
-                logger.warning(
-                    f"No data for {driver} lap {lap_number} in {event} {session}"
-                )
-                return False
-
-            telemetry = selected_lap.get_telemetry()
-            
-            # Create data key
-            data_key = f"{self.year}-{event}-{session}-{driver}-{lap_number}"
-            
-            # Process telemetry directly to avoid serialization issues
-            telemetry_data = self.process_single_lap_telemetry_direct(telemetry, data_key)
-
-            with open(file_path, "w") as json_file:
-                json.dump(telemetry_data, json_file)
-
-            return True
-        except Exception as e:
-            logger.error(f"Error processing lap {lap_number} for {driver}: {str(e)}")
-            return False
-
-    def process_lap_batch_with_joblib(
-        self, event: str, session: str, driver: str, lap_numbers: List[int], 
-        driver_dir: str, f1session=None
-    ) -> List[bool]:
-        """Process a batch of laps using joblib for CPU-intensive work."""
-        
-        def process_single_lap_job(lap_number):
-            return self.process_lap(event, session, driver, lap_number, driver_dir, f1session)
-
-        if self.use_joblib and len(lap_numbers) > 1:
-            # Use joblib for parallel processing of the batch
-            results = Parallel(n_jobs=self.n_jobs, backend='loky', prefer='processes')(
-                delayed(process_single_lap_job)(lap_num) for lap_num in lap_numbers
-            )
-        else:
-            # Sequential processing for small batches
-            results = [process_single_lap_job(lap_num) for lap_num in lap_numbers]
-        
-        return results
-
-    def get_circuit_info(self, event: str, session: str) -> Optional[Dict[str, List]]:
-        """Get circuit corner information."""
-        cache_key = f"{self.year}-{event}-{session}"
-
-        if cache_key in CIRCUIT_INFO_CACHE:
-            return CIRCUIT_INFO_CACHE[cache_key]
-
-        try:
-            f1session = self.get_session(event, session)
+            f1session = self.get_session(event_name, session_name)
             circuit_key = f1session.session_info["Meeting"]["Circuit"]["Key"]
 
-            # Try to get corner data from fastf1 first
             try:
                 circuit_info = f1session.get_circuit_info()
                 corners = circuit_info.corners
-                # Get the rotation from the circuit info
-                rotation = circuit_info.rotation
-
-                corner_info = {
-                    "CornerNumber": corners["Number"].tolist(),
-                    "X": corners["X"].tolist(),
-                    "Y": corners["Y"].tolist(),
-                    "Angle": corners["Angle"].tolist(),
-                    "Distance": corners["Distance"].tolist(),
-                    "Rotation": rotation,  # Add rotation information
+                result = {
+                    "CornerNumber": _series_to_json_list(corners["Number"]),
+                    "X": _series_to_json_list(corners["X"]),
+                    "Y": _series_to_json_list(corners["Y"]),
+                    "Angle": _series_to_json_list(corners["Angle"]),
+                    "Distance": _series_to_json_list(corners["Distance"]),
+                    "Rotation": _scalar_to_json_primitive_or_none(circuit_info.rotation),
                 }
-                CIRCUIT_INFO_CACHE[cache_key] = corner_info
-                return corner_info
+                self._circuit_cache[cache_key] = result
+                return result
             except (AttributeError, KeyError):
-                # Fall back to API method if fastf1 method fails
-                circuit_info, rotation = self._get_circuit_info_from_api(circuit_key)
-                if circuit_info is not None:
-                    corner_info = {
-                        "CornerNumber": circuit_info["Number"].tolist(),
-                        "X": circuit_info["X"].tolist(),
-                        "Y": circuit_info["Y"].tolist(),
-                        "Angle": circuit_info["Angle"].tolist(),
-                        "Distance": (circuit_info["Distance"] / 10).tolist(),
-                        "Rotation": rotation,  # Add rotation information from API
+                circuit_df, rotation = self._get_circuit_info_from_api(circuit_key)
+                if circuit_df is not None:
+                    result = {
+                        "CornerNumber": _series_to_json_list(circuit_df["Number"]),
+                        "X": _series_to_json_list(circuit_df["X"]),
+                        "Y": _series_to_json_list(circuit_df["Y"]),
+                        "Angle": _series_to_json_list(circuit_df["Angle"]),
+                        "Distance": _series_to_json_list(circuit_df["Distance"] / 10),
+                        "Rotation": _scalar_to_json_primitive_or_none(rotation),
                     }
-                    CIRCUIT_INFO_CACHE[cache_key] = corner_info
-                    return corner_info
+                    self._circuit_cache[cache_key] = result
+                    return result
 
-            logger.warning(f"Could not get corner data for {event} {session}")
+            logger.warning(
+                f"Could not get corner data for {event_name} {session_name}"
+            )
             return None
         except Exception as e:
-            logger.error(f"Error getting circuit info for {event} {session}: {str(e)}")
+            logger.error(
+                f"Error getting circuit info for {event_name} {session_name}: {e}"
+            )
             return None
 
     def _get_circuit_info_from_api(
         self, circuit_key: int
     ) -> Tuple[Optional[pd.DataFrame], float]:
-        """Get circuit information from the MultiViewer API."""
         url = f"{PROTO}://{HOST}/api/v1/circuits/{circuit_key}/{self.year}"
         try:
             response = requests.get(url, headers=HEADERS)
@@ -586,21 +752,19 @@ class TelemetryExtractor:
                 return None, 0.0
 
             data = response.json()
-            # Extract rotation from the API response
             rotation = float(data.get("rotation", 0.0))
 
-            rows = []
-            for entry in data["corners"]:
-                rows.append(
-                    (
-                        float(entry.get("trackPosition", {}).get("x", 0.0)),
-                        float(entry.get("trackPosition", {}).get("y", 0.0)),
-                        int(entry.get("number", 0)),
-                        str(entry.get("letter", "")),
-                        float(entry.get("angle", 0.0)),
-                        float(entry.get("length", 0.0)),
-                    )
+            rows = [
+                (
+                    float(e.get("trackPosition", {}).get("x", 0.0)),
+                    float(e.get("trackPosition", {}).get("y", 0.0)),
+                    int(e.get("number", 0)),
+                    str(e.get("letter", "")),
+                    float(e.get("angle", 0.0)),
+                    float(e.get("length", 0.0)),
                 )
+                for e in data["corners"]
+            ]
 
             return (
                 pd.DataFrame(
@@ -609,228 +773,181 @@ class TelemetryExtractor:
                 rotation,
             )
         except Exception as e:
-            logger.error(f"Error fetching circuit data from API: {str(e)}")
+            logger.error(f"Error fetching circuit data from API: {e}")
             return None, 0.0
 
+    def _process_single_lap(
+        self,
+        driver: str,
+        lap_number: int,
+        driver_dir: str,
+        driver_laps: pd.DataFrame,
+        event_name: str,
+        session_name: str,
+    ) -> bool:
+        file_path = f"{driver_dir}/{lap_number}_tel.json"
+        try:
+            selected = driver_laps[driver_laps.LapNumber == lap_number]
+            if selected.empty:
+                logger.warning(
+                    f"No data for {driver} lap {lap_number} in {event_name} {session_name}"
+                )
+                return False
+
+            telemetry = selected.get_telemetry()
+            data_key = f"{self.year}-{event_name}-{session_name}-{driver}-{lap_number}"
+            tel_data = _process_telemetry_to_dict(telemetry, data_key)
+            _write_json(file_path, tel_data)
+            return True
+        except Exception as e:
+            logger.error(f"Error processing lap {lap_number} for {driver}: {e}")
+            return False
+
     def process_driver(
-        self, event: str, session: str, driver: str, base_dir: str, f1session=None
+        self,
+        event_name: str,
+        session_name: str,
+        driver: str,
+        base_dir: str,
+        f1session: fastf1.core.Session = None,
+        session_weather_df: pd.DataFrame = None,
     ) -> None:
-        """Process all laps for a single driver with optimized joblib batching."""
         driver_dir = f"{base_dir}/{driver}"
         os.makedirs(driver_dir, exist_ok=True)
 
         try:
             if f1session is None:
-                f1session = self.get_session(event, session, load_telemetry=True)
+                f1session = self.get_session(
+                    event_name, session_name, load_telemetry=True
+                )
 
-            # Save lap times
-            laptimes = self.laps_data(event, session, driver, f1session)
-            # Replace NaN values with None before JSON serialization
-            laptimes["time"] = ["None" if pd.isna(x) else x for x in laptimes["time"]]
-            laptimes["lap"] = ["None" if pd.isna(x) else x for x in laptimes["lap"]]
-            laptimes["compound"] = [
-                "None" if pd.isna(x) else x for x in laptimes["compound"]
-            ]
-            with open(f"{driver_dir}/laptimes.json", "w") as json_file:
-                json.dump(laptimes, json_file)
-
-            # Get driver laps
-            laps = f1session.laps
-            driver_laps = laps.pick_drivers(driver).copy()
-            driver_laps["LapNumber"] = driver_laps["LapNumber"].astype(int)
-            # Create a new column for lap times in seconds to avoid dtype conflicts
-            driver_laps["LapTimeSeconds"] = driver_laps["LapTime"].apply(
-                lambda x: x.total_seconds() if hasattr(x, "total_seconds") else x
+            driver_laps = f1session.laps.pick_drivers(driver)
+            driver_laps = driver_laps.assign(
+                LapNumber=driver_laps["LapNumber"].astype(int)
             )
+
+            laptimes = self.laps_data(driver, f1session, driver_laps, session_weather_df)
+            _write_json(f"{driver_dir}/laptimes.json", laptimes)
+
             lap_numbers = driver_laps["LapNumber"].tolist()
 
-            if self.use_joblib and len(lap_numbers) > self.batch_size:
-                # Split laps into batches for joblib processing
-                lap_batches = [
-                    lap_numbers[i:i + self.batch_size] 
-                    for i in range(0, len(lap_numbers), self.batch_size)
-                ]
-                
-                # Process batches with ThreadPoolExecutor for I/O coordination
-                with ThreadPoolExecutor(max_workers=min(4, len(lap_batches))) as executor:
-                    futures = [
-                        executor.submit(
-                            self.process_lap_batch_with_joblib,
-                            event, session, driver, batch, driver_dir, f1session
-                        )
-                        for batch in lap_batches
-                    ]
-                    
-                    for future in as_completed(futures):
-                        future.result()  # Catch any exceptions
-            else:
-                # Use original parallel processing for smaller datasets
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = [
-                        executor.submit(
-                            self.process_lap,
-                            event,
-                            session,
-                            driver,
-                            lap_number,
-                            driver_dir,
-                            f1session,
-                            driver_laps,
-                        )
-                        for lap_number in lap_numbers
-                    ]
+            existing = (
+                set(os.listdir(driver_dir))
+                if os.path.isdir(driver_dir)
+                else set()
+            )
 
-                    for future in as_completed(futures):
-                        future.result()  # Just to catch any exceptions
+            for lap_number in lap_numbers:
+                fname = f"{lap_number}_tel.json"
+                if fname in existing:
+                    continue
+                self._process_single_lap(
+                    driver, lap_number, driver_dir, driver_laps, event_name, session_name
+                )
 
         except Exception as e:
-            logger.error(f"Error processing driver {driver}: {str(e)}")
+            logger.error(f"Error processing driver {driver}: {e}")
 
-    def process_event_session(self, event: str, session: str) -> None:
-        """Process a single event and session, extracting all telemetry data."""
-        logger.info(f"Processing {event} - {session} {'with joblib' if self.use_joblib else 'without joblib'}")
+    def process_event_session(self, event_name: str, session_name: str) -> None:
+        label = f"{event_name} - {session_name}"
+        logger.info(f"Processing {label}")
 
-        # Create base directory for this event/session
-        base_dir = f"{event}/{session}"
+        base_dir = f"{event_name}/{session_name}"
         os.makedirs(base_dir, exist_ok=True)
 
         try:
-            # Load session data once
-            f1session = self.get_session(event, session, load_telemetry=True)
+            f1session = self.get_session(event_name, session_name, load_telemetry=True)
 
-            # Save drivers information
-            drivers_info = self.session_drivers(event, session)
-            with open(f"{base_dir}/drivers.json", "w") as json_file:
-                json.dump(drivers_info, json_file)
+            weather_data = _session_weather_to_column_lists(f1session.weather_data)
+            _write_json(f"{base_dir}/weather.json", weather_data)
 
-            # Save circuit corner information
-            corner_info = self.get_circuit_info(event, session)
+            session_control_messages = _session_rcm_to_column_lists(
+                f1session.race_control_messages
+            )
+            _write_json(f"{base_dir}/rcm.json", session_control_messages)
+
+            drivers_info = self.session_drivers(event_name, session_name, f1session)
+            _write_json(f"{base_dir}/drivers.json", drivers_info)
+
+            corner_info = self.get_circuit_info(event_name, session_name)
             if corner_info:
-                with open(f"{base_dir}/corners.json", "w") as json_file:
-                    json.dump(corner_info, json_file)
+                _write_json(f"{base_dir}/corners.json", corner_info)
 
-            # Get driver list
-            drivers = self.session_drivers_list(event, session)
+            drivers = [d["driver"] for d in drivers_info.get("drivers", [])]
 
-            # Process drivers in parallel
-            with ThreadPoolExecutor(max_workers=8) as executor:
-                futures = [
-                    executor.submit(
-                        self.process_driver, event, session, driver, base_dir, f1session
-                    )
-                    for driver in drivers
-                ]
+            if not drivers:
+                logger.warning(f"No drivers found for {label}")
+                return
 
-                for future in as_completed(futures):
-                    future.result()  # Just to catch any exceptions
+            session_weather_df = None
+            if hasattr(f1session.laps, "get_weather_data"):
+                try:
+                    session_weather_df = f1session.laps.get_weather_data()
+                except Exception:
+                    pass
 
+            total_drivers = len(drivers)
+            for i, driver in enumerate(drivers, 1):
+                logger.info(f"Processing driver {driver} ({i}/{total_drivers})")
+                self.process_driver(
+                    event_name,
+                    session_name,
+                    driver,
+                    base_dir,
+                    f1session,
+                    session_weather_df,
+                )
         except Exception as e:
-            logger.error(f"Error processing {event} - {session}: {str(e)}")
+            logger.error(f"Error processing {label}: {e}")
 
-    def process_all_data(self, max_workers: int = 4) -> None:
-        """Process all configured events and sessions, with parallelization."""
-        logger.info(f"Starting {'joblib-optimized' if self.use_joblib else 'standard'} telemetry extraction for {self.year} season")
-        logger.info(f"Events: {self.events}")
-        logger.info(f"Sessions: {self.sessions}")
-        
-        if self.use_joblib:
-            logger.info(f"Joblib settings: n_jobs={self.n_jobs}, batch_size={self.batch_size}")
-
+    def process_all(self) -> None:
+        logger.info(f"Starting season session extraction for {self.year}")
         start_time = time.time()
 
-        # Process each event and session in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
-            for event in self.events:
-                for session in self.sessions:
-                    futures.append(
-                        executor.submit(self.process_event_session, event, session)
-                    )
+        event_name = TARGET_EVENT_NAME.strip() if TARGET_EVENT_NAME else ""
+        if not event_name:
+            logger.warning("No TARGET_EVENT_NAME configured — nothing to extract.")
+            return
 
-            # Wait for all tasks to complete
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"Error in processing task: {str(e)}")
+        sessions = [s for s in TARGET_SESSIONS if isinstance(s, str) and s.strip()]
+        if not sessions:
+            logger.warning("No TARGET_SESSIONS configured — nothing to extract.")
+            return
 
-        elapsed_time = time.time() - start_time
-        logger.info(f"Telemetry extraction completed in {elapsed_time:.2f} seconds")
+        logger.info(f"Processing {event_name} ({', '.join(sessions)})")
+        for session_name in sessions:
+            try:
+                self.process_event_session(event_name, session_name)
+            except Exception as e:
+                logger.error(f"Failed {event_name} {session_name}: {e}")
+            check_memory_usage(
+                session_cache=self._session_cache,
+                circuit_cache=self._circuit_cache,
+            )
 
-    def clear_joblib_cache(self):
-        """Clear the joblib memory cache."""
-        if hasattr(memory, 'clear'):
-            memory.clear()
-            logger.info("Joblib cache cleared")
-
-
-import gc
-import logging
-import os
-
-import psutil
-
-logger = logging.getLogger("memory_monitor")
+        elapsed = time.time() - start_time
+        logger.info(f"Season session extraction completed in {elapsed:.2f} seconds")
 
 
-def check_memory_usage(threshold_percent=80):
-    """
-    Check if memory usage exceeds threshold and clear caches if needed.
-
-    Args:
-        threshold_percent: Memory usage percentage threshold
-
-    Returns:
-        True if memory was cleared, False otherwise
-    """
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info()
-    memory_percent = process.memory_percent()
-
-    logger.info(
-        f"Current memory usage: {memory_percent:.2f}% ({memory_info.rss / 1024 / 1024:.2f} MB)"
-    )
-
-    if memory_percent > threshold_percent:
-        logger.warning(
-            f"Memory usage exceeds {threshold_percent}% threshold, clearing caches"
-        )
-        # Clear the session cache
-        SESSION_CACHE.clear()
-        CIRCUIT_INFO_CACHE.clear()
-
-        # Clear joblib cache
-        if hasattr(memory, 'clear'):
-            memory.clear()
-            logger.info("Joblib cache cleared")
-
-        # Force garbage collection
-        gc.collect()
-
-        # Log new memory usage
-        new_memory_percent = psutil.Process(os.getpid()).memory_percent()
-        logger.info(
-            f"New memory usage after clearing caches: {new_memory_percent:.2f}%"
-        )
-        return True
-
-    return False
+# ======================================================================
+# Data Availability
+# ======================================================================
 
 
-def is_data_available(year, events, sessions):
-    """
-    Check if data is available for the specified year, events, and sessions.
 
-    Args:
-        year: The F1 season year
-        events: List of event names to check
-        sessions: List of session names to check
 
-    Returns:
-        bool: True if data is available, False otherwise
-    """
+def is_session_data_available(
+    year: int,
+    events: Optional[List[str]] = None,
+    sessions: Optional[List[str]] = None,
+) -> bool:
+    """Check if data is available for the first specified event/session pair."""
     try:
-        # Try to load the first event and session as a test
+        if events is None:
+            events = [TARGET_EVENT_NAME] if TARGET_EVENT_NAME else []
+        if sessions is None:
+            sessions = list(TARGET_SESSIONS)
+
         if not events or not sessions:
             logger.warning("No events or sessions specified to check")
             return False
@@ -840,17 +957,18 @@ def is_data_available(year, events, sessions):
 
         logger.info(f"Checking data availability for {year} {event} {session}...")
 
-        # Try to get the session without loading telemetry
         f1session = fastf1.get_session(year, event, session)
         f1session.load(telemetry=False, weather=False, messages=False)
 
-        # Check if we have lap data
         if f1session.laps.empty:
             logger.info(f"No lap data available yet for {year} {event} {session}")
             return False
 
-        # Check if we have at least one driver
-        if len(f1session.laps["Driver"].unique()) == 0:
+        if "Driver" not in f1session.laps.columns:
+            logger.info(f"No driver data available yet for {year} {event} {session}")
+            return False
+
+        if len(f1session.laps["Driver"].dropna().unique()) == 0:
             logger.info(f"No driver data available yet for {year} {event} {session}")
             return False
 
@@ -863,55 +981,41 @@ def is_data_available(year, events, sessions):
 
 
 def main():
-    """Main entry point for the script with joblib optimization options."""
     try:
-        # Configuration options for joblib
-        use_joblib = True  # Set to False to disable joblib optimizations
-        n_jobs = -1  # -1 uses all available cores, or specify a number
-        batch_size = 8  # Number of laps per batch for joblib processing
-        
-        # Create extractor with joblib options
-        extractor = TelemetryExtractor(
-            use_joblib=use_joblib,
-            n_jobs=n_jobs,
-            batch_size=batch_size
-        )
+        year = DEFAULT_YEAR
 
-        # Use more workers on GitHub Actions
-        is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-        max_workers = 12 if is_github_actions else 8
+        os.makedirs("cache", exist_ok=True)
+        fastf1.Cache.enable_cache("cache")
 
-        # Wait for data to be available
-        wait_time = 30  # seconds between checks
-        max_attempts = 720  # 12 hours max wait time (720 * 60 seconds)
+        extractor = SeasonSessionExtractor(year=year)
+        max_attempts = 720
+        wait_time = 30
         attempt = 0
 
-        logger.info(f"Starting to wait for {extractor.year} season data...")
+        logger.info(f"Starting to wait for {year} season session data...")
 
         while attempt < max_attempts:
-            if is_data_available(extractor.year, extractor.events, extractor.sessions):
+            if is_session_data_available(year):
                 logger.info(
-                    f"Data is available for {extractor.year} season. Starting extraction..."
+                    f"Data is available for {year} season sessions. "
+                    "Starting extraction..."
                 )
-                extractor.process_all_data(max_workers=max_workers)
+                extractor.process_all()
                 break
             else:
                 attempt += 1
                 logger.info(
-                    f"Data not yet available. Waiting {wait_time} seconds before retry ({attempt}/{max_attempts})..."
+                    f"Data not yet available. Waiting {wait_time}s "
+                    f"before retry ({attempt}/{max_attempts})..."
                 )
                 time.sleep(wait_time)
-
-                # Check memory usage and clear if needed
-                check_memory_usage()
+                gc.collect()
 
         if attempt >= max_attempts:
-            logger.error(
-                f"Exceeded maximum wait time ({max_attempts * wait_time / 3600} hours). Exiting."
-            )
+            logger.error("Exceeded maximum wait time. Exiting.")
 
     except Exception as e:
-        logger.error(f"Error in main function: {str(e)}")
+        logger.error(f"Error in main function: {e}")
         raise
 
 
