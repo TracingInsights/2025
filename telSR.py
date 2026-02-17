@@ -45,7 +45,7 @@ TARGET_EVENT_NAMES_LIST = [
     # "British Grand Prix",
     # "Belgian Grand Prix",
     # "Hungarian Grand Prix",
-    "Dutch Grand Prix",
+    # "Dutch Grand Prix",
     # "Italian Grand Prix",
     # "Azerbaijan Grand Prix",
     # "Singapore Grand Prix",
@@ -54,7 +54,7 @@ TARGET_EVENT_NAMES_LIST = [
     # "São Paulo Grand Prix",
     # "Las Vegas Grand Prix",
     # "Qatar Grand Prix",
-    # "Abu Dhabi Grand Prix",
+    "Abu Dhabi Grand Prix",
 ]
 if len(TARGET_EVENT_NAMES_LIST) != 1:
     raise ValueError(
