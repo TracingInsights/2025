@@ -74,11 +74,11 @@ AVAILABLE_SESSIONS = [
 # Select one or more sessions from AVAILABLE_SESSIONS.
 TARGET_SESSIONS = [
     "Practice 1",
-    "Practice 2",
-    "Practice 3",
+    # "Practice 2",
+    # "Practice 3",
     "Qualifying",
-    # "Sprint Qualifying",
-    # "Sprint",
+    "Sprint Qualifying",
+    "Sprint",
     "Race",
 ]
 invalid_target_sessions = sorted(set(TARGET_SESSIONS) - set(AVAILABLE_SESSIONS))
