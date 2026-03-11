@@ -718,7 +718,7 @@ class SeasonSessionExtractor:
         if cached is not None:
             return cached
         f1session = fastf1.get_session(self.year, event_name, session_name)
-        f1session.load(telemetry=True, weather=True, messages=True)
+        f1session.load(telemetry=False, weather=True, messages=True)
         self._session_cache[cache_key] = f1session
         return f1session
 
