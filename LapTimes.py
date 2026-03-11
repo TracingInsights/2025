@@ -34,9 +34,9 @@ import requests
 DEFAULT_YEAR = 2025
 # Uncomment one or more events to process.
 TARGET_EVENTS = [
-    "Australian Grand Prix",
-    "Chinese Grand Prix",
-    # "Japanese Grand Prix",
+    # "Australian Grand Prix",
+    # "Chinese Grand Prix",
+    "Japanese Grand Prix",
     # "Bahrain Grand Prix",
     # "Saudi Arabian Grand Prix",
     # "Miami Grand Prix",
@@ -1210,3 +1210,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
