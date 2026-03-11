@@ -31,9 +31,9 @@ import requests
 # Constants & Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_YEAR = 2026
-# Keep exactly one uncommented event in this list.
-TARGET_EVENT_NAMES_LIST = [
+DEFAULT_YEAR = 2025
+# Uncomment one or more events to process.
+TARGET_EVENTS = [
     "Australian Grand Prix",
     "Chinese Grand Prix",
     # "Japanese Grand Prix",
@@ -59,11 +59,6 @@ TARGET_EVENT_NAMES_LIST = [
     # "Qatar Grand Prix",
     # "Abu Dhabi Grand Prix",
 ]
-if len(TARGET_EVENT_NAMES_LIST) != 1:
-    raise ValueError(
-        "Set exactly one active event in TARGET_EVENT_NAME (comment all others)."
-    )
-TARGET_EVENT_NAME = TARGET_EVENT_NAMES_LIST[0]
 AVAILABLE_SESSIONS = [
     "Practice 1",
     "Practice 2",
@@ -1089,9 +1084,9 @@ class SeasonSessionExtractor:
         logger.info("Starting laptimes extraction for %d", self.year)
         start_time = time.time()
 
-        event_name = TARGET_EVENT_NAME.strip() if TARGET_EVENT_NAME else ""
-        if not event_name:
-            logger.warning("No TARGET_EVENT_NAME configured — nothing to extract.")
+        events = [e.strip() for e in TARGET_EVENTS if isinstance(e, str) and e.strip()]
+        if not events:
+            logger.warning("No TARGET_EVENTS configured — nothing to extract.")
             return
 
         sessions = [s for s in TARGET_SESSIONS if isinstance(s, str) and s.strip()]
@@ -1099,13 +1094,14 @@ class SeasonSessionExtractor:
             logger.warning("No TARGET_SESSIONS configured — nothing to extract.")
             return
 
-        logger.info("Processing %s (%s)", event_name, ", ".join(sessions))
-        for session_name in sessions:
-            try:
-                self.process_event_session(event_name, session_name)
-            except Exception as e:
-                logger.error("Failed %s %s: %s", event_name, session_name, e)
-            check_memory_usage(session_cache=self._session_cache)
+        for event_name in events:
+            logger.info("Processing %s (%s)", event_name, ", ".join(sessions))
+            for session_name in sessions:
+                try:
+                    self.process_event_session(event_name, session_name)
+                except Exception as e:
+                    logger.error("Failed %s %s: %s", event_name, session_name, e)
+                check_memory_usage(session_cache=self._session_cache)
 
         elapsed = time.time() - start_time
         logger.info("Laptimes extraction completed in %.2f seconds", elapsed)
@@ -1124,7 +1120,7 @@ def is_session_data_available(
     """Check if data is available for the first specified event/session pair."""
     try:
         if events is None:
-            events = [TARGET_EVENT_NAME] if TARGET_EVENT_NAME else []
+            events = [e.strip() for e in TARGET_EVENTS if isinstance(e, str) and e.strip()]
         if sessions is None:
             sessions = list(TARGET_SESSIONS)
 
