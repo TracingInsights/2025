@@ -1,57 +1,54 @@
-name: laptimes
+name: LappyTimey
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 19 24 10 *'
+    - cron: '30 2 6 3 *'
+
+
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
 jobs:
-  update-laptimes:
+  extract-telemetry:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository (scripts only)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           sparse-checkout: |
             cache/1.txt
+            cache_preseason/1.txt
             requirements.txt
-            laptimesR.py
-            ergast_client.py
+            LapTimes.py            
             utils.py
-          sparse-checkout-cone-mode: false
-          
+          sparse-checkout-cone-mode: false    
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
-          
+          python-version: '3.13'
+
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
-          enable-cache: false
+          enable-cache: true
           
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-py3.10-
-            ${{ runner.os }}-uv-
-            
+
       - name: Install dependencies with uv
-        run: uv pip install --system -r requirements.txt
-        
+        run: |
+          uv pip install --system -r requirements.txt
+
       - name: Configure Git
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
-      - name: Get full laptimes
-        run: python laptimesR.py
+
+      - name: Run LapTime Extraction
+        run: python LapTimes.py
         env:
           GITHUB_ACTIONS: "true"
-          
+
       - name: Commit and push changes
         run: |
           # Temporarily disable sparse-checkout advice and add files with --sparse flag
@@ -74,4 +71,6 @@ jobs:
               echo "No changes to commit"
           fi
         env:
+
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

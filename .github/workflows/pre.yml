@@ -1,9 +1,10 @@
-name: FP1
+name: pre
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 10 5 12 *'
+  # schedule:
+  #   - cron: '0 16 13 2 *'
+
 
 env:
   ACTIONS_ALLOW_UNSECURE_COMMANDS: true
@@ -13,33 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (scripts only)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           sparse-checkout: |
             cache/1.txt
+            cache_preseason/1.txt
             requirements.txt
             preseason.py            
             utils.py
           sparse-checkout-cone-mode: false    
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.13'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
-          enable-cache: false
+          enable-cache: true
           
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-py3.10-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-py3.10-
-            ${{ runner.os }}-uv-
 
       - name: Install dependencies with uv
         run: |
@@ -77,4 +71,5 @@ jobs:
               echo "No changes to commit"
           fi
         env:
+
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
