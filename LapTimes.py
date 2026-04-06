@@ -36,7 +36,7 @@ DEFAULT_YEAR = 2025
 TARGET_EVENT_NAMES_LIST = [
     # "Australian Grand Prix",
     # "Chinese Grand Prix",
-    # "Japanese Grand Prix",
+    "Japanese Grand Prix",
     # "Bahrain Grand Prix",
     # "Saudi Arabian Grand Prix",
     # "Miami Grand Prix",
@@ -55,8 +55,8 @@ TARGET_EVENT_NAMES_LIST = [
     # "United States Grand Prix",
     # "Mexico City Grand Prix",
     # "São Paulo Grand Prix",
-    "Las Vegas Grand Prix",
-    "Qatar Grand Prix",
+    # "Las Vegas Grand Prix",
+    # "Qatar Grand Prix",
     "Abu Dhabi Grand Prix",
 ]
 TARGET_EVENT_NAMES = [e.strip() for e in TARGET_EVENT_NAMES_LIST if e.strip()]
