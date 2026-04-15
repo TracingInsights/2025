@@ -1,0 +1,68 @@
+name: SessionLappyTimey
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '30 2 6 3 *'
+
+
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+
+jobs:
+  extract-telemetry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (sparse)
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            **/laptimes.json
+            *.py
+            requirements.txt
+          sparse-checkout-cone-mode: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+
+      - name: Install dependencies with uv
+        run: |
+          uv pip install --system -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run LapTime Extraction
+        run: python SessionLapTimes.py
+        env:
+          GITHUB_ACTIONS: "true"
+
+      - name: Commit and push changes
+        run: |
+          # Find all JSON files created/modified by the script
+          find . -type f -name "session_laptimes.json" -not -path "./.git/*" -exec git add --sparse --force {} +
+
+          # Also add the log file if it exists
+          if [ -f "laptimes_extraction.log" ]; then
+            git add --force laptimes_extraction.log
+          fi
+
+          # Check if there are staged changes
+          if ! git diff --cached --quiet; then
+              git commit -m "Update F1 telemetry data [skip ci]"
+              git push origin main
+          else
+              echo "No changes to commit"
+          fi
+        env:
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
