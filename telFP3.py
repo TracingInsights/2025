@@ -23,6 +23,8 @@ import pandas as pd
 import psutil
 import requests
 
+from utils import build_circuit_details, get_mv_circuit_payload
+
 # ---------------------------------------------------------------------------
 # Constants & Configuration
 # ---------------------------------------------------------------------------
@@ -482,6 +484,152 @@ def _process_telemetry_to_dict(telemetry: pd.DataFrame, data_key: str) -> dict:
     }
 
 
+# Circuit section breakdowns: sections/<circuit>.json divides the lap into
+# straights and low/medium/high-speed sections as a percentage of the total
+# lap distance, e.g. sections/marina-bay-street-circuit.json:
+#     [["Straight", 0.00, 5.96], ["Low", 5.96, 13.44], ...]
+# Each event is mapped explicitly to its sections file below; there is no
+# fuzzy matching on event or circuit names. Events without an entry (no
+# breakdown for their circuit yet) get no sections.
+SECTIONS_DIR = "sections"
+VALID_SECTION_TYPES = {"Straight", "Low", "Medium", "High"}
+
+# Event name -> sections/ file name (without the .json extension).
+EVENT_SECTIONS_FILE = {
+    "Australian Grand Prix": "albert-park-circuit",
+    "Austrian Grand Prix": "red-bull-ring",
+    "Azerbaijan Grand Prix": "baku-city-circuit",
+    "Bahrain Grand Prix": "bahrain-international-circuit",
+    "Belgian Grand Prix": "circuit-de-spa-francorchamps",
+    "British Grand Prix": "silverstone",
+    "Canadian Grand Prix": "canada",
+    "Dutch Grand Prix": "circuit-zandvoort",
+    "Emilia Romagna Grand Prix": "emilia",
+    "Hungarian Grand Prix": "hungary",
+    "Italian Grand Prix": "monza",
+    "Miami Grand Prix": "miami-international-autodrome",
+    "Monaco Grand Prix": "circuit-de-monaco",
+    "Saudi Arabian Grand Prix": "jeddah-corniche-circuit",
+    "Singapore Grand Prix": "marina-bay-street-circuit",
+    # Held at Barcelona-Catalunya in 2025.
+    "Spanish Grand Prix": "circuit-de-barcelona-catalunya",
+    "Qatar Grand Prix": "lusail-international-circuit",
+    "Abu Dhabi Grand Prix": "yas-marina-circuit",
+    "United States Grand Prix": "circuit-of-the-americas",
+    "Mexico City Grand Prix": "autodrome-hermanos-rodriguez",
+    "São Paulo Grand Prix": "interlagos-circuit",
+    "Pre-Season Testing": "bahrain-international-circuit",
+    # No sections file yet for Chinese, Japanese or Las Vegas Grand Prix.
+}
+
+
+def _load_circuit_sections(event_name) -> Optional[List[Tuple[str, float, float]]]:
+    """Load the sections file mapped to this event in EVENT_SECTIONS_FILE.
+
+    Sections are [type, start_percent, end_percent] rows where the bounds are
+    a percentage of the total lap distance. Returns None when the event has
+    no mapped sections file.
+    """
+    stem = EVENT_SECTIONS_FILE.get(event_name)
+    if stem is None:
+        return None
+
+    path = os.path.join(SECTIONS_DIR, f"{stem}.json")
+    try:
+        with open(path, "rb") as f:
+            raw = orjson.loads(f.read())
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("must be a non-empty list of section rows")
+        rows = []
+        for entry in raw:
+            if isinstance(entry, dict):
+                section_type = entry.get("Type") or entry.get("type")
+                start = entry.get("StartPercent", entry.get("start"))
+                end = entry.get("EndPercent", entry.get("end"))
+            else:
+                section_type, start, end = entry[0], entry[1], entry[2]
+            section_type = str(section_type).strip().capitalize()
+            if section_type not in VALID_SECTION_TYPES:
+                raise ValueError(f"invalid section type {section_type!r}")
+            start = float(start)
+            end = float(end)
+            if not 0.0 <= start < end <= 100.0:
+                raise ValueError(f"invalid section bounds {start}-{end}")
+            rows.append((section_type, start, end))
+        return rows
+    except Exception as e:
+        logger.error(f"Error loading circuit sections from {path}: {e}")
+        return None
+
+
+def _get_reference_lap_distance(f1session) -> Optional[float]:
+    """Total lap distance (meters) of the fastest lap, the reference lap."""
+    try:
+        fastest_lap = f1session.laps.pick_fastest()
+        if fastest_lap is None:
+            return None
+        telemetry = fastest_lap.get_telemetry()
+        if telemetry is None or telemetry.empty:
+            return None
+        distance = float(telemetry["Distance"].max())
+        return distance if distance > 0 else None
+    except Exception as e:
+        logger.debug(f"Could not determine reference lap distance: {e}")
+        return None
+
+
+def _section_for_distance(
+    distance, section_rows, reference_lap_distance
+) -> Optional[str]:
+    """Return the section (Straight/Low/Medium/High) containing this distance."""
+    if not section_rows or reference_lap_distance is None:
+        return None
+    if distance is None or isinstance(distance, str):
+        return None
+    try:
+        percent = float(distance) / reference_lap_distance * 100.0
+    except (TypeError, ValueError):
+        return None
+    if percent != percent:  # NaN
+        return None
+    for index, (section_type, start, end) in enumerate(section_rows):
+        if start <= percent < end:
+            return section_type
+        if index == len(section_rows) - 1 and percent >= end:
+            return section_type
+    return None
+
+
+def _add_sections_to_corner_info(
+    corner_info: Dict, section_rows, reference_lap_distance
+) -> None:
+    """Add the circuit's section breakdown to corners.json data.
+
+    The section bands are stored as parallel column lists. Distances and the
+    per-corner classification are resolved against the reference (fastest)
+    lap's total lap distance.
+    """
+    section_rows = section_rows or []
+    distances = corner_info.get("Distance") or []
+    corner_info["Section"] = [
+        _section_for_distance(distance, section_rows, reference_lap_distance)
+        for distance in distances
+    ]
+    corner_info["SectionType"] = [row[0] for row in section_rows]
+    corner_info["SectionStartPercent"] = [row[1] for row in section_rows]
+    corner_info["SectionEndPercent"] = [row[2] for row in section_rows]
+    if section_rows and reference_lap_distance is not None:
+        corner_info["SectionStartDistance"] = [
+            row[1] / 100.0 * reference_lap_distance for row in section_rows
+        ]
+        corner_info["SectionEndDistance"] = [
+            row[2] / 100.0 * reference_lap_distance for row in section_rows
+        ]
+    else:
+        corner_info["SectionStartDistance"] = [None] * len(section_rows)
+        corner_info["SectionEndDistance"] = [None] * len(section_rows)
+
+
 def check_memory_usage(threshold_percent=80, session_cache=None, circuit_cache=None):
     process = psutil.Process(os.getpid())
     memory_info = process.memory_info()
@@ -703,6 +851,9 @@ class SeasonSessionExtractor:
         try:
             f1session = self.get_session(event_name, session_name)
             circuit_key = f1session.session_info["Meeting"]["Circuit"]["Key"]
+            section_rows = _load_circuit_sections(event_name)
+            reference_lap_distance = _get_reference_lap_distance(f1session)
+            mv_payload = get_mv_circuit_payload(f1session)
 
             try:
                 circuit_info = f1session.get_circuit_info()
@@ -715,6 +866,10 @@ class SeasonSessionExtractor:
                     "Distance": _series_to_json_list(corners["Distance"]),
                     "Rotation": _scalar_to_json_primitive_or_none(circuit_info.rotation),
                 }
+                _add_sections_to_corner_info(
+                    result, section_rows, reference_lap_distance
+                )
+                result.update(build_circuit_details(mv_payload, circuit_info))
                 self._circuit_cache[cache_key] = result
                 return result
             except (AttributeError, KeyError):
@@ -728,6 +883,10 @@ class SeasonSessionExtractor:
                         "Distance": _series_to_json_list(circuit_df["Distance"] / 10),
                         "Rotation": _scalar_to_json_primitive_or_none(rotation),
                     }
+                    _add_sections_to_corner_info(
+                        result, section_rows, reference_lap_distance
+                    )
+                    result.update(build_circuit_details(mv_payload))
                     self._circuit_cache[cache_key] = result
                     return result
 

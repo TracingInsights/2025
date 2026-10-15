@@ -70,6 +70,80 @@ Ask AI about this repo/data
 
 </h2>
 
+## Circuit Corners & Sections (`corners.json`)
+
+Every session folder has a `corners.json` describing the circuit layout as parallel column lists. Distances are resolved against the session's fastest lap.
+
+- **Corners:** `CornerNumber`, `CornerLetter`, `CornerLabel` (e.g. `1`, `1A`), `X`, `Y`, `Angle`, `Distance` (meters from the start/finish line), `MVDistance` (MultiViewer's own fixed distance), `Rotation`.
+- **Sections:** `Section` gives each corner's speed regime (`"Straight"`, `"Low"`, `"Medium"` or `"High"`). The bands themselves are in `SectionType`, `SectionStartPercent`, `SectionEndPercent`, `SectionStartDistance` and `SectionEndDistance`, one entry per band. They come from the curated `sections/<circuit>.json` files (percent of lap distance). The Chinese, Japanese and Las Vegas Grands Prix have no breakdown yet, so their band lists are empty and `Section` is `null`.
+- **Marshal lights / sectors:** `MarshalLight*` and `MarshalSector*` (`Number`, `X`, `Y`, `Angle`, `Distance`, `MVDistance`).
+- **Circuit:** `CircuitKey`, `CircuitName`, `Location`, `CountryName`, `CountryKey`, `CountryIocCode`, and pit-loss estimates `PitLossNormal`, `PitLossSC`, `PitLossVSC`.
+- **Layout source:** `LayoutYear`, `LayoutRound`, `LayoutRaceDate`, `LayoutMeeting*`, `LayoutLap*`. MultiViewer doesn't publish every season, so the newest available layout is used, and these fields say which one.
+- **Track outline:** `TrackX` and `TrackY` (plot one against the other to draw the track map), plus `TrackTime` and `MiniSectorIndex`.
+
+Missing values are `null`. List fields that MultiViewer doesn't provide for a circuit are empty arrays.
+
+## Driver & Car Images
+
+Official Formula 1 images live under `images/`. Paths are built from the `team` and `driver` fields of `drivers.json`:
+
+| Folder | Contents | Source |
+|---|---|---|
+| `images/drivers/<team>/<driver>.webp` | Full-body driver cutout (transparent WebP, 1229 × 3840) | [formula1.com/en/drivers](https://www.formula1.com/en/drivers) |
+| `images/headshots/<team>/<driver>.png` | 840 × 840 headshot: the source asset behind the thumbnail that the `url` field in `drivers.json` links to | `media.formula1.com` |
+| `images/cars/<team>.webp` | Car side view (transparent WebP) | [formula1.com/en/teams](https://www.formula1.com/en/teams) |
+
+Every file is the original asset from `media.formula1.com`, not resized or re-encoded. Images are keyed by driver **and** team because pairings changed mid-season. Yuki Tsunoda and Liam Lawson swapped seats after two rounds, so the folder has both `Racing Bulls/TSU.webp` and `Red Bull Racing/TSU.webp`, and the same pair for `LAW`. `images/manifest.json` lists every file with the driver's name, pixel size and source URL. Reserve and test drivers exist on the host only as 128 × 128 images, so that is the size saved for them. Headshots exist only for drivers with a `url` in `drivers.json`.
+
+```bash
+curl -L -o VER.webp "https://raw.githubusercontent.com/TracingInsights/2025/main/images/drivers/Red%20Bull%20Racing/VER.webp"
+```
+
+To refresh the images, run `python3 download_images.py`. Add `--force` to re-download everything, or `--only cars` for a single set.
+
+## Team Radio
+
+Team radio clips published by [OpenF1](https://openf1.org) are saved as MP3 files in each driver's folder. Each session also has an index:
+
+| Path | Contents |
+|---|---|
+| `<event>/<session>/<driver>/radio/<file>.mp3` | Original team radio recording from the F1 live timing archive |
+| `<event>/<session>/team_radio.json` | Every clip of the session in time order: driver, driver number, UTC date, local file path and source URL |
+
+Only clips that F1 broadcast are available, so most sessions have between a handful and a few dozen messages. `LapTimes.py` downloads the radios for each session it processes. To backfill the whole season, run `python3 team_radio.py`. Files that already exist are skipped.
+
+## Fetch via CDN (jsDelivr)
+
+Every push to this repository creates a GitHub release with a semver tag (e.g. `2026.288.1`, made from `<year>.<day-of-year>.<build>` of the release date). You can fetch any file through jsDelivr, pinned to that release:
+
+```text
+https://cdn.jsdelivr.net/gh/TracingInsights/2025@2026.288.1/Australian%20Grand%20Prix/Race/corners.json
+```
+
+For the latest data, look up the current release tag first. Both requests are fast and CORS-enabled:
+
+```javascript
+const release = await fetch(
+  "https://api.github.com/repos/TracingInsights/2025/releases/latest"
+).then(r => r.json());
+
+const url = `https://cdn.jsdelivr.net/gh/TracingInsights/2025@${release.tag_name}/Australian%20Grand%20Prix/Race/corners.json`;
+```
+
+```bash
+TAG=$(curl -s https://api.github.com/repos/TracingInsights/2025/releases/latest | jq -r .tag_name)
+curl -L "https://cdn.jsdelivr.net/gh/TracingInsights/2025@${TAG}/Australian%20Grand%20Prix/Race/corners.json"
+```
+
+If you don't need a pinned release, you can use a branch directly (cached for 12 hours):
+
+```text
+https://cdn.jsdelivr.net/gh/TracingInsights/2025@main/Australian%20Grand%20Prix/Race/corners.json
+```
+
+> **Note:** jsDelivr serves individual files up to 20 MB. The latest release tag is also available from jsDelivr's own API:
+> `https://data.jsdelivr.com/v1/packages/gh/TracingInsights/2025/resolved?specifier=latest`
+
 ## Frequently Asked Questions
 
 Data availability timeline:

@@ -23,6 +23,7 @@ jobs:
             requirements.txt
             preseason.py            
             utils.py
+            sections/
           sparse-checkout-cone-mode: false    
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -65,7 +66,7 @@ jobs:
           
           # Check if there are staged changes
           if ! git diff --cached --quiet; then
-              git commit -m "Update F1 telemetry data [skip ci]"
+              git commit -m "Update F1 telemetry data"
               git push origin main
           else
               echo "No changes to commit"

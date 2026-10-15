@@ -23,6 +23,8 @@ jobs:
           
           sparse-checkout: |
             telFP1.py
+            utils.py
+            sections/
             requirements.txt
             cache/1.txt
           
@@ -72,7 +74,7 @@ jobs:
           git add . 
 
           if [[ "$(git status --porcelain)" != "" ]]; then
-              git commit -m "Update F1 telemetry data [skip ci]" -a
+              git commit -m "Update F1 telemetry data" -a
               git push origin main
           else
               echo "No changes to commit"
